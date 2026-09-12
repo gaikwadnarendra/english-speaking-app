@@ -1,2 +1,0 @@
-// Not needed
-module.exports = {};
