@@ -14,8 +14,10 @@ import {
   X,
   Volume2,
   Trash2,
+  Sparkles,
 } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useNavigation } from '@react-navigation/native';
 
 import { useApp } from '../context/AppContext';
 import { COLORS, SPACING, RADIUS, SHADOWS } from '../constants/theme';
@@ -26,8 +28,9 @@ import { INITIAL_VOCAB } from '../data/vocabData';
 const FAVORITES_STORAGE_KEY = '@english_shika_fav_words';
 
 export default function FavoritesScreen() {
+  const navigation = useNavigation();
   const { t, language } = useApp();
-  const [favoriteIds, setFavoriteIds] = useState([3, 4, 7, 14, 15, 18]);
+  const [favoriteIds, setFavoriteIds] = useState([1, 2, 3, 5]);
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
@@ -68,29 +71,30 @@ export default function FavoritesScreen() {
       <Header />
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Banner */}
-        <View style={styles.headerCard}>
-          <View style={styles.badge}>
-            <Heart size={14} color="#EF4444" fill="#EF4444" />
-            <Text style={styles.badgeText}>{language === 'mr' ? 'माझे शब्द' : 'Bookmarks'}</Text>
+        {/* Header Title */}
+        <View style={styles.titleBlock}>
+          <View style={styles.badgeRow}>
+            <View style={styles.badgePill}>
+              <Heart size={13} color="#EF4444" fill="#EF4444" />
+              <Text style={styles.badgePillText}>{language === 'mr' ? 'माझे आवडते शब्द' : 'Saved Vocabulary'}</Text>
+            </View>
+            <Text style={styles.countText}>{favoriteWords.length} {language === 'mr' ? 'शब्द सेव्ह' : 'words'}</Text>
           </View>
-          <Text style={styles.headerTitle}>
-            {language === 'mr' ? 'सेव्ह केलेले शब्द' : language === 'hi' ? 'सहेजे गए शब्द' : 'Saved Favorites'}
-          </Text>
-          <Text style={styles.headerSub}>
+          <Text style={styles.mainTitle}>{language === 'mr' ? 'जतन केलेले शब्दसंग्रह' : 'Bookmarked Words'}</Text>
+          <Text style={styles.mainSub}>
             {language === 'mr'
-              ? 'जलद उजळणीसाठी तुम्ही सेव्ह केलेले सर्व शब्द येथे उपलब्ध आहेत.'
-              : 'Review and listen to words you have bookmarked for practice.'}
+              ? 'तुम्ही सेव्ह केलेले सर्व कठीण आणि महत्त्वाचे शब्द येथे उजळणीसाठी उपलब्ध आहेत.'
+              : 'Quickly access and revise all your starred vocabulary words.'}
           </Text>
         </View>
 
-        {/* Search within favorites */}
-        <View style={styles.searchBox}>
-          <Search size={18} color={COLORS.textMuted} />
+        {/* Search Bar */}
+        <View style={styles.searchBar}>
+          <Search size={16} color={COLORS.textMuted} />
           <TextInput
             style={styles.searchInput}
-            placeholder={language === 'mr' ? 'सेव्ह केलेले शब्द शोधा...' : 'Search favorites...'}
-            placeholderTextColor={COLORS.textMuted}
+            placeholder={language === 'mr' ? 'सेव्ह केलेले शब्द शोधा...' : 'Search saved words...'}
+            placeholderTextColor={COLORS.textLight}
             value={searchQuery}
             onChangeText={setSearchQuery}
           />
@@ -102,69 +106,53 @@ export default function FavoritesScreen() {
         </View>
 
         {/* Words List */}
-        <View style={styles.wordsList}>
-          {filteredWords.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Heart size={44} color="#E5E7EB" />
-              <Text style={styles.emptyTitle}>
-                {language === 'mr' ? 'कोणताही शब्द सेव्ह केलेला नाही' : 'No favorites saved yet'}
-              </Text>
-              <Text style={styles.emptySub}>
-                {language === 'mr'
-                  ? 'शब्दसंग्रहातून शब्द सेव्ह करण्यासाठी हार्ट चिन्हावर टॅप करा.'
-                  : 'Tap the heart icon in Vocabulary to save words for quick revision.'}
-              </Text>
-            </View>
-          ) : (
-            filteredWords.map(item => (
-              <View key={item.id} style={styles.wordCard}>
-                <View style={styles.wordCardHeader}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.wordEn}>{item.word}</Text>
-                    <Text style={styles.wordPron}>/{item.pronunciation}/</Text>
+        {filteredWords.length === 0 ? (
+          <View style={styles.emptyCard}>
+            <Heart size={40} color="#CBD5E1" />
+            <Text style={styles.emptyTitle}>
+              {language === 'mr' ? 'अद्याप कोणतेही शब्द सेव्ह केलेले नाहीत' : 'No favorites added yet'}
+            </Text>
+            <Text style={styles.emptySub}>
+              {language === 'mr'
+                ? 'शब्दसंग्रहामध्ये शब्दाच्या समोरील ❤️ आयकॉनवर टॅप करून शब्द सेव्ह करा.'
+                : 'Tap the heart icon on any word in the Vocabulary tab to add it here.'}
+            </Text>
+            <TouchableOpacity
+              style={styles.goToVocabBtn}
+              onPress={() => navigation.navigate('Vocab')}
+            >
+              <Sparkles size={16} color={COLORS.white} />
+              <Text style={styles.goToVocabBtnText}>{language === 'mr' ? 'शब्दसंग्रह पहा' : 'Explore Vocab'}</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={styles.wordsList}>
+            {filteredWords.map((item, idx) => (
+              <View key={item.id || idx} style={styles.favWordCard}>
+                <View style={styles.cardLeftCol}>
+                  <View style={styles.wordTitleRow}>
+                    <Text style={styles.wordEnText}>{item.word}</Text>
+                    <Text style={styles.wordPronText}>({item.pronunciation || ''})</Text>
                   </View>
-                  <View style={styles.actionBtns}>
-                    <AudioButton text={item.word} size={34} />
-                    <TouchableOpacity
-                      onPress={() => removeFavorite(item.id)}
-                      style={styles.deleteBtn}
-                    >
-                      <Trash2 size={18} color="#EF4444" />
-                    </TouchableOpacity>
-                  </View>
+                  <Text style={styles.wordLocText}>
+                    {language === 'mr' ? item.marathi : language === 'hi' ? item.hindi : item.marathi}
+                  </Text>
                 </View>
 
-                <View style={styles.meaningsRow}>
-                  <Text style={styles.meaningLabel}>मराठी:</Text>
-                  <Text style={styles.meaningVal}>{item.marathi}</Text>
+                <View style={styles.cardActionsRow}>
+                  <AudioButton text={item.word} size={36} />
+                  <TouchableOpacity
+                    style={styles.deleteBtn}
+                    onPress={() => removeFavorite(item.id)}
+                    activeOpacity={0.7}
+                  >
+                    <Trash2 size={16} color="#EF4444" />
+                  </TouchableOpacity>
                 </View>
-
-                {item.hindi && (
-                  <View style={styles.meaningsRow}>
-                    <Text style={styles.meaningLabel}>हिंदी:</Text>
-                    <Text style={styles.meaningVal}>{item.hindi}</Text>
-                  </View>
-                )}
-
-                {item.examples && item.examples[0] && (
-                  <View style={styles.exampleBox}>
-                    <View style={styles.exampleRow}>
-                      <Text style={styles.exampleEn}>"{item.examples[0].english}"</Text>
-                      <AudioButton text={item.examples[0].english} size={24} />
-                    </View>
-                    <Text style={styles.exampleLoc}>
-                      {language === 'hi' && item.examples[0].hindi
-                        ? item.examples[0].hindi
-                        : item.examples[0].marathi}
-                    </Text>
-                  </View>
-                )}
               </View>
-            ))
-          )}
-        </View>
-
-        <View style={{ height: 40 }} />
+            ))}
+          </View>
+        )}
       </ScrollView>
     </View>
   );
@@ -173,155 +161,152 @@ export default function FavoritesScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: COLORS.bgMain,
   },
   scrollContent: {
-    padding: SPACING.m,
+    padding: SPACING.md,
+    paddingBottom: 120,
   },
-  headerCard: {
-    backgroundColor: COLORS.white,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.l,
-    marginBottom: SPACING.m,
-    ...SHADOWS.card,
+  titleBlock: {
+    marginBottom: SPACING.md,
   },
-  badge: {
+  badgeRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FEE2E2',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: RADIUS.full,
-    alignSelf: 'flex-start',
-    gap: 4,
+    justifyContent: 'space-between',
     marginBottom: 6,
   },
-  badgeText: {
+  badgePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FEE2E2',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: RADIUS.full,
+  },
+  badgePillText: {
     fontSize: 11,
     fontWeight: '800',
-    color: '#EF4444',
+    color: '#991B1B',
   },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: COLORS.text,
+  countText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.textMuted,
+  },
+  mainTitle: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: COLORS.textMain,
     marginBottom: 4,
   },
-  headerSub: {
+  mainSub: {
     fontSize: 13,
     color: COLORS.textMuted,
     lineHeight: 18,
   },
-  searchBox: {
+  searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: COLORS.white,
     borderRadius: RADIUS.md,
-    paddingHorizontal: SPACING.m,
-    height: 44,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderWidth: 1,
     borderColor: COLORS.border,
-    marginBottom: SPACING.m,
+    marginBottom: SPACING.md,
     gap: 8,
+    ...SHADOWS.sm,
   },
   searchInput: {
     flex: 1,
-    fontSize: 14,
-    color: COLORS.text,
+    fontSize: 13,
+    color: COLORS.textMain,
+    padding: 0,
   },
   wordsList: {
-    gap: SPACING.m,
+    gap: 10,
   },
-  emptyState: {
-    backgroundColor: COLORS.white,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.xl,
+  favWordCard: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginTop: SPACING.m,
-    ...SHADOWS.card,
+    justifyContent: 'space-between',
+    backgroundColor: COLORS.white,
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    ...SHADOWS.sm,
   },
-  emptyTitle: {
+  cardLeftCol: {
+    flex: 1,
+  },
+  wordTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 2,
+  },
+  wordEnText: {
     fontSize: 16,
     fontWeight: '800',
-    color: COLORS.text,
-    marginTop: SPACING.m,
-    marginBottom: 4,
+    color: COLORS.textMain,
   },
-  emptySub: {
+  wordPronText: {
+    fontSize: 12,
+    color: COLORS.primaryDark,
+    fontWeight: '600',
+  },
+  wordLocText: {
     fontSize: 13,
     color: COLORS.textMuted,
-    textAlign: 'center',
-    lineHeight: 18,
   },
-  wordCard: {
-    backgroundColor: COLORS.white,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.m,
-    ...SHADOWS.card,
-  },
-  wordCardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 6,
-  },
-  wordEn: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: COLORS.text,
-  },
-  wordPron: {
-    fontSize: 13,
-    color: COLORS.primary,
-    fontWeight: '600',
-    marginTop: 2,
-  },
-  actionBtns: {
+  cardActionsRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
   deleteBtn: {
-    padding: 6,
+    padding: 8,
+    borderRadius: RADIUS.full,
+    backgroundColor: '#FEE2E2',
   },
-  meaningsRow: {
-    flexDirection: 'row',
-    gap: 6,
-    marginBottom: 3,
-  },
-  meaningLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: COLORS.textMuted,
-  },
-  meaningVal: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: COLORS.text,
-  },
-  exampleBox: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: RADIUS.sm,
-    padding: SPACING.s,
-    marginTop: SPACING.s,
-    borderLeftWidth: 3,
-    borderLeftColor: COLORS.accent,
-  },
-  exampleRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  emptyCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: RADIUS.lg,
+    padding: 30,
     alignItems: 'center',
-    marginBottom: 2,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    gap: 8,
+    marginTop: 20,
   },
-  exampleEn: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: COLORS.text,
-    flex: 1,
-    marginRight: 6,
+  emptyTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: COLORS.textMain,
+    textAlign: 'center',
   },
-  exampleLoc: {
+  emptySub: {
     fontSize: 12,
     color: COLORS.textMuted,
+    textAlign: 'center',
+    lineHeight: 18,
+    marginBottom: 10,
+  },
+  goToVocabBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: RADIUS.md,
+  },
+  goToVocabBtnText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: COLORS.white,
   },
 });

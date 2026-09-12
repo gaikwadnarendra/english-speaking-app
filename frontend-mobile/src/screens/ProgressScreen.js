@@ -17,6 +17,7 @@ import {
   Lock,
   Calendar,
   Trophy,
+  Target,
 } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -29,18 +30,18 @@ export default function ProgressScreen() {
   const { t, language, streak, userLevel } = useApp();
 
   const [stats, setStats] = useState({
-    wordsLearned: 28,
-    lessonsFinished: 3,
-    quizzesSolved: 14,
-    speakingPracticed: 8,
-    totalXp: 380,
+    wordsLearned: 45,
+    lessonsFinished: 5,
+    quizzesSolved: 18,
+    speakingPracticed: 12,
+    totalXp: 420,
   });
 
-  // Fetch online progress stats if available
+  // Fetch online stats if available
   useEffect(() => {
     const loadStats = async () => {
       try {
-        const res = await api.get('/api/progress/stats');
+        const res = await api.get('/progress/stats');
         if (res.data?.data) {
           setStats(prev => ({ ...prev, ...res.data.data }));
         }
@@ -52,39 +53,46 @@ export default function ProgressScreen() {
   const milestones = [
     {
       level: 1,
-      title: language === 'mr' ? 'स्तर १: नवशिक्या (Beginner)' : 'Level 1: Beginner',
-      desc: language === 'mr' ? 'मूलभूत मुळाक्षरे व ५० शब्द' : 'Starter phonics & 50 starter words',
+      title: language === 'mr' ? 'लेव्हल १: नवशिक्या (Beginner)' : 'Level 1: Beginner',
+      desc: language === 'mr' ? 'मूलभूत मुळाक्षरे, सोपे शब्द व आवाज' : 'Phonics & 50 starter words',
       unlocked: true,
       completed: true,
     },
     {
       level: 2,
-      title: language === 'mr' ? 'स्तर २: दैनंदिन संभाषण' : 'Level 2: Daily Life',
-      desc: language === 'mr' ? 'रोजच्या सवयी आणि क्रियापद रूपे' : 'Daily routines & V1-V2-V3 verbs',
+      title: language === 'mr' ? 'लेव्हल २: क्रियापदे व काळ' : 'Level 2: Verbs & Tenses',
+      desc: language === 'mr' ? 'V1, V2, V3 क्रियापदे आणि साधे काळ' : 'Daily routines & V1-V2-V3 verbs',
       unlocked: true,
       completed: false,
     },
     {
       level: 3,
-      title: language === 'mr' ? 'स्तर ३: व्याकरण व काळ' : 'Level 3: Grammar Master',
-      desc: language === 'mr' ? 'भूतकाळ, वर्तमानकाळ आणि वाक्यरचना' : 'Tenses, sentence builders & rules',
+      title: language === 'mr' ? 'लेव्हल ३: वाक्य रचना (Sentence Building)' : 'Level 3: Sentence Patterns',
+      desc: language === 'mr' ? 'I want, I have वाक्यरचना सराव' : 'Tenses, sentence builders & rules',
       unlocked: true,
       completed: false,
     },
     {
       level: 4,
-      title: language === 'mr' ? 'स्तर ४: अस्खलित संभाषण' : 'Level 4: Fluent Speaker',
-      desc: language === 'mr' ? 'हॉटेल, प्रवास आणि सार्वजनिक संवाद' : 'Public speaking & shopping dialogues',
+      title: language === 'mr' ? 'लेव्हल ४: दैनंदिन संभाषण (Dialogues)' : 'Level 4: Fluent Speaker',
+      desc: language === 'mr' ? 'हॉटेल, प्रवास आणि संवाद' : 'Public speaking & shopping dialogues',
       unlocked: false,
       completed: false,
     },
     {
       level: 5,
-      title: language === 'mr' ? 'स्तर ५: प्रगत व्यावसायिक' : 'Level 5: English Guru',
-      desc: language === 'mr' ? 'नोकरी मुलाखत व व्यावसायिक इंग्रजी' : 'Job interviews & professional mastery',
+      title: language === 'mr' ? 'लेव्हल ५: अस्खलित इंग्रजी (Mastery)' : 'Level 5: English Guru',
+      desc: language === 'mr' ? 'मुलाखत व व्यावसायिक इंग्रजी' : 'Job interviews & professional mastery',
       unlocked: false,
       completed: false,
     },
+  ];
+
+  const badges = [
+    { id: 1, title: language === 'mr' ? 'पहिले पाऊल' : 'First Step', icon: '🚀', desc: language === 'mr' ? 'पहिला धडा पूर्ण' : 'Completed first lesson', earned: true },
+    { id: 2, title: language === 'mr' ? 'सराव सातत्य' : 'Streak Hero', icon: '🔥', desc: language === 'mr' ? '३ दिवस सलग सराव' : '3-day learning streak', earned: true },
+    { id: 3, title: language === 'mr' ? 'शब्दभांडार' : 'Vocab Master', icon: '📚', desc: language === 'mr' ? '५०+ शब्द शिकले' : 'Learned 50+ words', earned: false },
+    { id: 4, title: language === 'mr' ? 'बोलणारा' : 'Speaker Star', icon: '🎙️', desc: language === 'mr' ? '१० संभाषणे पूर्ण' : 'Completed 10 speaking chats', earned: true },
   ];
 
   return (
@@ -92,136 +100,121 @@ export default function ProgressScreen() {
       <Header />
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Progress Hero */}
+        {/* Progress Banner */}
         <View style={styles.heroCard}>
-          <View style={styles.heroTop}>
-            <View style={styles.badge}>
-              <TrendingUp size={14} color="#7C3AED" />
-              <Text style={styles.badgeText}>{language === 'mr' ? 'माझी प्रगती' : 'My Progress'}</Text>
+          <View style={styles.heroTopRow}>
+            <View style={styles.badgePill}>
+              <TrendingUp size={14} color={COLORS.secondary} />
+              <Text style={styles.badgePillText}>{language === 'mr' ? 'माझी प्रगती' : 'My Learning Stats'}</Text>
             </View>
-            <View style={styles.xpPill}>
-              <Award size={16} color={COLORS.accent} />
-              <Text style={styles.xpPillText}>{stats.totalXp} XP</Text>
+            <View style={styles.xpTag}>
+              <Trophy size={14} color={COLORS.accentAmberDark} />
+              <Text style={styles.xpTagText}>{stats.totalXp} XP</Text>
             </View>
           </View>
 
           <Text style={styles.heroTitle}>
-            {language === 'mr' ? 'शिकण्याचा वेग व आकडेवारी' : 'Learning Analytics & Milestones'}
+            {language === 'mr' ? 'तुमचा इंग्रजी शिकण्याचा प्रवास' : 'Your Learning Journey'}
           </Text>
           <Text style={styles.heroSub}>
             {language === 'mr'
-              ? 'दररोजच्या अभ्यासातून मिळवलेले गुण आणि पूर्ण केलेले टप्पे.'
-              : 'Keep track of words memorized, quizzes solved, and level milestones.'}
+              ? 'दररोजचा सराव तुम्हाला इंग्रजीत अस्खलित बनवत आहे.'
+              : 'Every minute of daily practice brings you closer to fluent speaking.'}
           </Text>
         </View>
 
         {/* 4 Stats Grid */}
         <View style={styles.statsGrid}>
-          <View style={[styles.statBox, { borderLeftColor: COLORS.secondary }]}>
-            <View style={[styles.statIconWrap, { backgroundColor: '#ECFDF5' }]}>
-              <Sparkles size={20} color={COLORS.secondary} />
-            </View>
-            <Text style={styles.statNum}>{stats.wordsLearned}</Text>
-            <Text style={styles.statLabel}>{language === 'mr' ? 'शिकलेले शब्द' : 'Words Mastered'}</Text>
-          </View>
-
           <View style={[styles.statBox, { borderLeftColor: COLORS.primary }]}>
-            <View style={[styles.statIconWrap, { backgroundColor: '#EEF2FF' }]}>
-              <BookOpen size={20} color={COLORS.primary} />
+            <View style={[styles.statIconBadge, { backgroundColor: COLORS.primaryLight }]}>
+              <BookOpen size={18} color={COLORS.primary} />
             </View>
-            <Text style={styles.statNum}>{stats.lessonsFinished}</Text>
-            <Text style={styles.statLabel}>{language === 'mr' ? 'पूर्ण धडे' : 'Lessons Finished'}</Text>
+            <Text style={styles.statNumber}>{stats.wordsLearned}</Text>
+            <Text style={styles.statLabel}>{language === 'mr' ? 'शिकलेले शब्द' : 'Words Learned'}</Text>
           </View>
 
-          <View style={[styles.statBox, { borderLeftColor: COLORS.accent }]}>
-            <View style={[styles.statIconWrap, { backgroundColor: '#FFFBEB' }]}>
-              <Award size={20} color={COLORS.accent} />
+          <View style={[styles.statBox, { borderLeftColor: COLORS.secondary }]}>
+            <View style={[styles.statIconBadge, { backgroundColor: COLORS.secondaryLight }]}>
+              <Award size={18} color={COLORS.secondary} />
             </View>
-            <Text style={styles.statNum}>{stats.quizzesSolved}</Text>
-            <Text style={styles.statLabel}>{language === 'mr' ? 'सोडवलेले क्विझ' : 'Quizzes Solved'}</Text>
+            <Text style={styles.statNumber}>{stats.lessonsFinished}</Text>
+            <Text style={styles.statLabel}>{language === 'mr' ? 'पूर्ण धडे' : 'Lessons Done'}</Text>
           </View>
 
-          <View style={[styles.statBox, { borderLeftColor: COLORS.speak }]}>
-            <View style={[styles.statIconWrap, { backgroundColor: '#FDF2F8' }]}>
-              <Mic size={20} color={COLORS.speak} />
+          <View style={[styles.statBox, { borderLeftColor: COLORS.accentGreen }]}>
+            <View style={[styles.statIconBadge, { backgroundColor: COLORS.accentGreenLight }]}>
+              <Target size={18} color={COLORS.accentGreen} />
             </View>
-            <Text style={styles.statNum}>{stats.speakingPracticed}</Text>
-            <Text style={styles.statLabel}>{language === 'mr' ? 'AI संभाषणे' : 'Speaking Sessions'}</Text>
+            <Text style={styles.statNumber}>{stats.quizzesSolved}</Text>
+            <Text style={styles.statLabel}>{language === 'mr' ? 'क्विझ सराव' : 'Quizzes Solved'}</Text>
+          </View>
+
+          <View style={[styles.statBox, { borderLeftColor: COLORS.accentAmber }]}>
+            <View style={[styles.statIconBadge, { backgroundColor: COLORS.accentAmberLight }]}>
+              <Mic size={18} color={COLORS.accentAmberDark} />
+            </View>
+            <Text style={styles.statNumber}>{stats.speakingPracticed}</Text>
+            <Text style={styles.statLabel}>{language === 'mr' ? 'संभाषणे' : 'Speaking Sessions'}</Text>
           </View>
         </View>
 
-        {/* Streak Flame Card */}
-        <View style={styles.streakCard}>
-          <Flame size={36} color={COLORS.streak} />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.streakTitle}>
-              {streak} {language === 'mr' ? 'दिवसांची सातत्य साखळी!' : 'Days Learning Streak!'}
-            </Text>
-            <Text style={styles.streakSub}>
-              {language === 'mr'
-                ? 'दररोज सराव केल्याने इंग्रजी बोलण्याचा आत्मविश्वास वाढतो.'
-                : 'Consistent daily practice creates long-term fluent memory.'}
-            </Text>
-          </View>
+        {/* Badges Section */}
+        <View style={styles.sectionHeaderRow}>
+          <Text style={styles.sectionTitle}>🏆 {language === 'mr' ? 'मिळालेले सन्मान बॅजेस' : 'Achievement Badges'}</Text>
         </View>
 
-        {/* 5-Level Milestones Roadmap */}
-        <View style={styles.milestonesSection}>
-          <Text style={styles.sectionHeading}>
-            {language === 'mr' ? 'अभ्यासक्रम टप्पे (Curriculum Milestones)' : 'Curriculum Milestones'}
-          </Text>
-
-          {milestones.map((m, idx) => (
-            <View key={m.level} style={[styles.milestoneCard, !m.unlocked && styles.milestoneLocked]}>
-              <View style={styles.milestoneLeft}>
-                <View
-                  style={[
-                    styles.milestoneBadge,
-                    m.completed
-                      ? styles.mbCompleted
-                      : m.unlocked
-                      ? styles.mbUnlocked
-                      : styles.mbLocked,
-                  ]}
-                >
-                  {m.completed ? (
-                    <CheckCircle2 size={20} color={COLORS.white} />
-                  ) : !m.unlocked ? (
-                    <Lock size={18} color={COLORS.textMuted} />
-                  ) : (
-                    <Text style={styles.mbNumText}>L{m.level}</Text>
-                  )}
+        <View style={styles.badgesGrid}>
+          {badges.map(b => (
+            <View key={b.id} style={[styles.badgeCard, !b.earned && styles.badgeCardLocked]}>
+              <Text style={styles.badgeEmoji}>{b.icon}</Text>
+              <Text style={styles.badgeTitle}>{b.title}</Text>
+              <Text style={styles.badgeDesc}>{b.desc}</Text>
+              {b.earned ? (
+                <View style={styles.earnedTag}>
+                  <Text style={styles.earnedTagText}>{language === 'mr' ? 'मिळाला ✓' : 'Earned ✓'}</Text>
                 </View>
-              </View>
-
-              <View style={styles.milestoneInfo}>
-                <Text style={styles.milestoneTitle}>{m.title}</Text>
-                <Text style={styles.milestoneDesc}>{m.desc}</Text>
-              </View>
-
-              <View>
-                <Text
-                  style={[
-                    styles.milestoneStatus,
-                    m.completed
-                      ? { color: COLORS.secondary }
-                      : m.unlocked
-                      ? { color: COLORS.primary }
-                      : { color: COLORS.textMuted },
-                  ]}
-                >
-                  {m.completed
-                    ? (language === 'mr' ? 'पूर्ण 🏆' : 'Done 🏆')
-                    : m.unlocked
-                    ? (language === 'mr' ? 'चालू' : 'Active')
-                    : (language === 'mr' ? 'कुलूपबंद' : 'Locked')}
-                </Text>
-              </View>
+              ) : (
+                <View style={styles.lockedTag}>
+                  <Lock size={10} color={COLORS.textLight} />
+                  <Text style={styles.lockedTagText}>{language === 'mr' ? 'अनलॉक करा' : 'Locked'}</Text>
+                </View>
+              )}
             </View>
           ))}
         </View>
 
-        <View style={{ height: 40 }} />
+        {/* Levels Roadmap */}
+        <View style={styles.sectionHeaderRow}>
+          <Text style={styles.sectionTitle}>🗺️ {language === 'mr' ? 'स्तरांची प्रगती (Level Roadmap)' : 'Level Progress'}</Text>
+        </View>
+
+        <View style={styles.levelsList}>
+          {milestones.map(m => (
+            <View
+              key={m.level}
+              style={[
+                styles.levelMilestoneCard,
+                m.completed && styles.levelMilestoneCardCompleted,
+                !m.unlocked && styles.levelMilestoneCardLocked,
+              ]}
+            >
+              <View style={[styles.levelNumberCircle, m.completed && styles.levelNumberCircleCompleted]}>
+                {m.completed ? (
+                  <CheckCircle2 size={16} color={COLORS.white} />
+                ) : m.unlocked ? (
+                  <Text style={styles.levelNumberText}>L{m.level}</Text>
+                ) : (
+                  <Lock size={14} color={COLORS.textLight} />
+                )}
+              </View>
+
+              <View style={styles.levelInfoCol}>
+                <Text style={styles.levelMilestoneTitle}>{m.title}</Text>
+                <Text style={styles.levelMilestoneDesc}>{m.desc}</Text>
+              </View>
+            </View>
+          ))}
+        </View>
       </ScrollView>
     </View>
   );
@@ -230,60 +223,63 @@ export default function ProgressScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: COLORS.bgMain,
   },
   scrollContent: {
-    padding: SPACING.m,
+    padding: SPACING.md,
+    paddingBottom: 120,
   },
   heroCard: {
     backgroundColor: COLORS.white,
-    borderRadius: RADIUS.xl,
-    padding: SPACING.l,
-    marginBottom: SPACING.m,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
     ...SHADOWS.card,
   },
-  heroTop: {
+  heroTopRow: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: SPACING.s,
+    marginBottom: 8,
   },
-  badge: {
+  badgePill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F3E8FF',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: RADIUS.full,
     gap: 4,
-  },
-  badgeText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#7C3AED',
-  },
-  xpPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFBEB',
-    paddingHorizontal: 10,
+    backgroundColor: COLORS.secondaryLight,
+    paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: RADIUS.full,
-    gap: 4,
   },
-  xpPillText: {
-    fontSize: 13,
+  badgePillText: {
+    fontSize: 11,
     fontWeight: '800',
-    color: '#B45309',
+    color: COLORS.secondary,
+  },
+  xpTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: COLORS.accentAmberLight,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: RADIUS.full,
+  },
+  xpTagText: {
+    fontSize: 11,
+    fontWeight: '900',
+    color: COLORS.accentAmberDark,
   },
   heroTitle: {
     fontSize: 18,
-    fontWeight: '800',
-    color: COLORS.text,
+    fontWeight: '900',
+    color: COLORS.textMain,
     marginBottom: 4,
   },
   heroSub: {
-    fontSize: 13,
+    fontSize: 12,
     color: COLORS.textMuted,
     lineHeight: 18,
   },
@@ -291,116 +287,157 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    gap: SPACING.s,
-    marginBottom: SPACING.m,
+    gap: 10,
+    marginBottom: SPACING.md,
   },
   statBox: {
     width: '48%',
     backgroundColor: COLORS.white,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.m,
-    borderLeftWidth: 4,
-    ...SHADOWS.card,
-  },
-  statIconWrap: {
-    width: 38,
-    height: 38,
     borderRadius: RADIUS.md,
+    padding: SPACING.md,
+    borderLeftWidth: 4,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    ...SHADOWS.sm,
+  },
+  statIconBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: RADIUS.sm,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: SPACING.s,
+    marginBottom: 6,
   },
-  statNum: {
+  statNumber: {
     fontSize: 22,
     fontWeight: '900',
-    color: COLORS.text,
-    marginBottom: 2,
+    color: COLORS.textMain,
   },
   statLabel: {
-    fontSize: 12,
+    fontSize: 11,
+    fontWeight: '700',
     color: COLORS.textMuted,
-    fontWeight: '600',
+    marginTop: 2,
   },
-  streakCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFF7ED',
-    borderRadius: RADIUS.lg,
-    padding: SPACING.m,
-    borderWidth: 1.5,
-    borderColor: '#FED7AA',
-    gap: SPACING.m,
-    marginBottom: SPACING.l,
-    ...SHADOWS.card,
+  sectionHeaderRow: {
+    marginBottom: 10,
+    marginTop: 6,
   },
-  streakTitle: {
-    fontSize: 16,
+  sectionTitle: {
+    fontSize: 15,
     fontWeight: '800',
-    color: '#C2410C',
+    color: COLORS.textMain,
+  },
+  badgesGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: 10,
+    marginBottom: SPACING.md,
+  },
+  badgeCard: {
+    width: '48%',
+    backgroundColor: COLORS.white,
+    borderRadius: RADIUS.md,
+    padding: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    ...SHADOWS.sm,
+    gap: 4,
+  },
+  badgeCardLocked: {
+    opacity: 0.5,
+  },
+  badgeEmoji: {
+    fontSize: 28,
     marginBottom: 2,
   },
-  streakSub: {
-    fontSize: 12,
+  badgeTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: COLORS.textMain,
+    textAlign: 'center',
+  },
+  badgeDesc: {
+    fontSize: 10,
+    color: COLORS.textMuted,
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  earnedTag: {
+    backgroundColor: COLORS.accentGreenLight,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: RADIUS.full,
+  },
+  earnedTagText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: COLORS.accentGreenDark,
+  },
+  lockedTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: RADIUS.full,
+  },
+  lockedTagText: {
+    fontSize: 9,
+    fontWeight: '700',
     color: COLORS.textMuted,
   },
-  milestonesSection: {
-    gap: SPACING.s,
+  levelsList: {
+    gap: 8,
   },
-  sectionHeading: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: COLORS.text,
-    marginBottom: SPACING.xs,
-  },
-  milestoneCard: {
+  levelMilestoneCard: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: COLORS.white,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.m,
-    gap: SPACING.m,
-    ...SHADOWS.card,
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    ...SHADOWS.sm,
+    gap: 12,
   },
-  milestoneLocked: {
-    opacity: 0.6,
+  levelMilestoneCardCompleted: {
+    borderLeftWidth: 4,
+    borderLeftColor: COLORS.accentGreen,
   },
-  milestoneLeft: {},
-  milestoneBadge: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+  levelMilestoneCardLocked: {
+    opacity: 0.5,
+  },
+  levelNumberCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: COLORS.secondaryLight,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  mbCompleted: {
-    backgroundColor: COLORS.secondary,
+  levelNumberCircleCompleted: {
+    backgroundColor: COLORS.accentGreen,
   },
-  mbUnlocked: {
-    backgroundColor: COLORS.primary,
+  levelNumberText: {
+    fontSize: 12,
+    fontWeight: '900',
+    color: COLORS.secondary,
   },
-  mbLocked: {
-    backgroundColor: '#E5E7EB',
-  },
-  mbNumText: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: COLORS.white,
-  },
-  milestoneInfo: {
+  levelInfoCol: {
     flex: 1,
   },
-  milestoneTitle: {
-    fontSize: 14,
+  levelMilestoneTitle: {
+    fontSize: 13,
     fontWeight: '800',
-    color: COLORS.text,
-    marginBottom: 2,
+    color: COLORS.textMain,
   },
-  milestoneDesc: {
+  levelMilestoneDesc: {
     fontSize: 11,
     color: COLORS.textMuted,
-  },
-  milestoneStatus: {
-    fontSize: 12,
-    fontWeight: '800',
+    marginTop: 2,
   },
 });

@@ -18,22 +18,26 @@ import {
   Info,
   Check,
   Shield,
+  Sparkles,
+  Server,
 } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Speech from 'expo-speech';
 
 import { useApp } from '../context/AppContext';
 import { COLORS, SPACING, RADIUS, SHADOWS } from '../constants/theme';
 import Header from '../components/Header';
+import { API_BASE_URL } from '../config/api';
 
 export default function SettingsScreen() {
   const {
     t,
     language,
-    setLanguage,
+    changeLanguage,
     userLevel,
     setUserLevel,
-    speechRate,
-    setSpeechRate,
+    soundSpeed,
+    setSoundSpeed,
     resetOnboarding,
   } = useApp();
 
@@ -45,12 +49,19 @@ export default function SettingsScreen() {
     { label: language === 'mr' ? 'जलद (1.0x)' : 'Fast (1.0x)', val: 1.0 },
   ];
 
+  const handleTestSound = (speed) => {
+    Speech.speak('Hello! How are you doing today? Welcome to English Shika.', {
+      language: 'en-US',
+      rate: speed || soundSpeed || 0.85,
+    });
+  };
+
   const handleResetData = () => {
     Alert.alert(
-      language === 'mr' ? 'डेटा रीसेट करायचा आहे का?' : 'Reset All App Data?',
+      language === 'mr' ? 'सर्व डेटा रीसेट करायचा आहे का?' : 'Reset All App Data?',
       language === 'mr'
         ? 'यामुळे तुमची सर्व धडे, सेव्ह केलेले शब्द आणि प्रगती मिटवली जाईल.'
-        : 'This will reset all your completed lessons, favorites and streak progress.',
+        : 'This will reset all your completed lessons, favorites, and streak progress.',
       [
         { text: language === 'mr' ? 'रद्द करा' : 'Cancel', style: 'cancel' },
         {
@@ -78,10 +89,10 @@ export default function SettingsScreen() {
         <View style={styles.headerCard}>
           <View style={styles.badge}>
             <Settings size={14} color={COLORS.primary} />
-            <Text style={styles.badgeText}>{language === 'mr' ? 'सेटिंग्ज' : 'Preferences'}</Text>
+            <Text style={styles.badgeText}>{language === 'mr' ? 'प्राधान्ये' : 'Preferences'}</Text>
           </View>
           <Text style={styles.headerTitle}>
-            {language === 'mr' ? 'अ‍ॅप सेटिंग्ज व प्राधान्ये' : 'App Settings & Sound'}
+            {language === 'mr' ? 'अ‍ॅप सेटिंग्ज व ऑडिओ' : 'App Settings & Sound'}
           </Text>
           <Text style={styles.headerSub}>
             {language === 'mr'
@@ -99,22 +110,26 @@ export default function SettingsScreen() {
             </Text>
           </View>
 
-          <View style={styles.optionsGroup}>
+          <View style={styles.optionsCol}>
             {[
-              { code: 'mr', label: 'मराठी (Marathi)' },
-              { code: 'hi', label: 'हिंदी (Hindi)' },
-              { code: 'en', label: 'English' },
+              { code: 'mr', title: 'मराठी (Marathi)', desc: 'मराठीतून इंग्रजी शिका (Default)' },
+              { code: 'hi', title: 'हिंदी (Hindi)', desc: 'हिंदी से अंग्रेजी सीखें' },
+              { code: 'en', title: 'English (English)', desc: 'Learn directly in English' },
             ].map(item => {
               const isSelected = language === item.code;
               return (
                 <TouchableOpacity
                   key={item.code}
-                  style={[styles.radioItem, isSelected && styles.radioItemSelected]}
-                  onPress={() => setLanguage(item.code)}
+                  style={[styles.optionRowBtn, isSelected && styles.optionRowBtnSelected]}
+                  onPress={() => changeLanguage(item.code)}
+                  activeOpacity={0.7}
                 >
-                  <Text style={[styles.radioLabel, isSelected && styles.radioLabelSelected]}>
-                    {item.label}
-                  </Text>
+                  <View style={styles.optionTextCol}>
+                    <Text style={[styles.optionTitle, isSelected && styles.optionTitleSelected]}>
+                      {item.title}
+                    </Text>
+                    <Text style={styles.optionDesc}>{item.desc}</Text>
+                  </View>
                   {isSelected && <Check size={18} color={COLORS.primary} />}
                 </TouchableOpacity>
               );
@@ -122,111 +137,89 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        {/* Section 2: Proficiency Level */}
-        <View style={styles.sectionCard}>
-          <View style={styles.sectionTitleRow}>
-            <Award size={18} color={COLORS.accent} />
-            <Text style={styles.sectionTitle}>
-              {language === 'mr' ? 'माझा इंग्रजी स्तर' : 'English Proficiency Level'}
-            </Text>
-          </View>
-
-          <View style={styles.optionsGroup}>
-            {[
-              { id: 'beginner', label: language === 'mr' ? 'नवशिक्या (Beginner - Level 1)' : 'Beginner (Level 1)' },
-              { id: 'intermediate', label: language === 'mr' ? 'मध्यम (Intermediate - Level 2-3)' : 'Intermediate (Level 2-3)' },
-              { id: 'advanced', label: language === 'mr' ? 'प्रगत (Advanced - Level 4-5)' : 'Advanced (Level 4-5)' },
-            ].map(lvl => {
-              const isSelected = userLevel === lvl.id;
-              return (
-                <TouchableOpacity
-                  key={lvl.id}
-                  style={[styles.radioItem, isSelected && styles.radioItemSelected]}
-                  onPress={() => setUserLevel(lvl.id)}
-                >
-                  <Text style={[styles.radioLabel, isSelected && styles.radioLabelSelected]}>
-                    {lvl.label}
-                  </Text>
-                  {isSelected && <Check size={18} color={COLORS.accent} />}
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </View>
-
-        {/* Section 3: Speech Audio Speed */}
+        {/* Section 2: Audio Pronunciation Speed */}
         <View style={styles.sectionCard}>
           <View style={styles.sectionTitleRow}>
             <Volume2 size={18} color={COLORS.secondary} />
             <Text style={styles.sectionTitle}>
-              {language === 'mr' ? 'उच्चार आवाज वेग (Speech Speed)' : 'TTS Pronunciation Speed'}
+              {language === 'mr' ? 'ऑडिओ उच्चार वेग (Voice Speed)' : 'Audio Speed'}
             </Text>
           </View>
 
-          <View style={styles.speedPillsRow}>
+          <View style={styles.speedOptionsRow}>
             {speedOptions.map(opt => {
-              const isSelected = Math.abs(speechRate - opt.val) < 0.05;
+              const isSelected = (soundSpeed || 0.85) === opt.val;
               return (
                 <TouchableOpacity
                   key={opt.val}
-                  style={[styles.speedPill, isSelected && styles.speedPillActive]}
-                  onPress={() => setSpeechRate(opt.val)}
+                  style={[styles.speedBtn, isSelected && styles.speedBtnSelected]}
+                  onPress={() => {
+                    setSoundSpeed(opt.val);
+                    handleTestSound(opt.val);
+                  }}
+                  activeOpacity={0.7}
                 >
-                  <Text style={[styles.speedPillText, isSelected && styles.speedPillTextActive]}>
+                  <Text style={[styles.speedBtnText, isSelected && styles.speedBtnTextSelected]}>
                     {opt.label}
                   </Text>
                 </TouchableOpacity>
               );
             })}
           </View>
+
+          <TouchableOpacity
+            style={styles.testSoundBtn}
+            onPress={() => handleTestSound(soundSpeed)}
+            activeOpacity={0.8}
+          >
+            <Volume2 size={16} color={COLORS.secondary} />
+            <Text style={styles.testSoundBtnText}>
+              {language === 'mr' ? 'आवाज तपासा (Test Audio)' : 'Test Pronunciation Voice'}
+            </Text>
+          </TouchableOpacity>
         </View>
 
-        {/* Section 4: Daily Reminder Toggle */}
+        {/* Section 3: Server & Sync Info */}
         <View style={styles.sectionCard}>
-          <View style={styles.toggleRow}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
-              <Bell size={18} color={COLORS.text} />
-              <View>
-                <Text style={styles.toggleTitle}>
-                  {language === 'mr' ? 'दैनंदिन सराव आठवण (Daily Reminder)' : 'Daily Practice Notification'}
-                </Text>
-                <Text style={styles.toggleSub}>
-                  {language === 'mr' ? 'दररोज सकाळी ८:०० वाजता स्मरण' : 'Remind me at 8:00 AM every day'}
-                </Text>
-              </View>
-            </View>
-            <Switch
-              value={dailyReminder}
-              onValueChange={setDailyReminder}
-              trackColor={{ false: '#E5E7EB', true: COLORS.primary }}
-              thumbColor={COLORS.white}
-            />
+          <View style={styles.sectionTitleRow}>
+            <Server size={18} color={COLORS.accentGreen} />
+            <Text style={styles.sectionTitle}>
+              {language === 'mr' ? 'बॅकएंड सर्व्हर स्थिती' : 'Cloud Server Connection'}
+            </Text>
           </View>
+          <View style={styles.serverStatusBox}>
+            <View style={styles.onlineDot} />
+            <Text style={styles.serverStatusText}>
+              {language === 'mr' ? 'Render Live Cloud Server जोडलेले आहे' : 'Connected to Render Cloud API'}
+            </Text>
+          </View>
+          <Text style={styles.serverUrlText}>{API_BASE_URL}</Text>
         </View>
 
-        {/* Section 5: Reset All Data */}
+        {/* Section 4: Reset Data */}
         <View style={styles.sectionCard}>
+          <View style={styles.sectionTitleRow}>
+            <RotateCcw size={18} color="#EF4444" />
+            <Text style={styles.sectionTitle}>
+              {language === 'mr' ? 'डेटा व प्रगती रीसेट करा' : 'Reset Progress'}
+            </Text>
+          </View>
+          <Text style={styles.resetWarningText}>
+            {language === 'mr'
+              ? 'जर तुम्हाला सुरुवातीपासून पुन्हा अभ्यास सुरू करायचा असेल तर तुम्ही स्थानिक डेटा मिटवू शकता.'
+              : 'Clear your device learning progress and start fresh from onboarding.'}
+          </Text>
           <TouchableOpacity
             style={styles.resetBtn}
             onPress={handleResetData}
             activeOpacity={0.8}
           >
-            <RotateCcw size={18} color="#EF4444" />
+            <RotateCcw size={16} color="#EF4444" />
             <Text style={styles.resetBtnText}>
-              {language === 'mr' ? 'सर्व प्रगती रीसेट करा (Reset Progress)' : 'Reset All Learning Progress'}
+              {language === 'mr' ? 'सर्व प्रगती रीसेट करा' : 'Reset All Progress'}
             </Text>
           </TouchableOpacity>
         </View>
-
-        {/* About App Info */}
-        <View style={styles.aboutCard}>
-          <Info size={16} color={COLORS.textMuted} />
-          <Text style={styles.aboutText}>
-            English शिका (Marathi ➔ English Learning App) • v1.0.0 Mobile Expo Build
-          </Text>
-        </View>
-
-        <View style={{ height: 40 }} />
       </ScrollView>
     </View>
   );
@@ -235,149 +228,180 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: COLORS.bgMain,
   },
   scrollContent: {
-    padding: SPACING.m,
+    padding: SPACING.md,
+    paddingBottom: 120,
+    gap: 12,
   },
   headerCard: {
     backgroundColor: COLORS.white,
     borderRadius: RADIUS.lg,
-    padding: SPACING.l,
-    marginBottom: SPACING.m,
+    padding: SPACING.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
     ...SHADOWS.card,
   },
   badge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#EEF2FF',
+    gap: 4,
+    backgroundColor: COLORS.primaryLight,
     paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingVertical: 4,
     borderRadius: RADIUS.full,
     alignSelf: 'flex-start',
-    gap: 4,
     marginBottom: 6,
   },
   badgeText: {
     fontSize: 11,
     fontWeight: '800',
-    color: COLORS.primary,
+    color: COLORS.primaryDark,
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: '800',
-    color: COLORS.text,
+    fontWeight: '900',
+    color: COLORS.textMain,
     marginBottom: 4,
   },
   headerSub: {
-    fontSize: 13,
+    fontSize: 12,
     color: COLORS.textMuted,
     lineHeight: 18,
   },
   sectionCard: {
     backgroundColor: COLORS.white,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.m,
-    marginBottom: SPACING.m,
-    ...SHADOWS.card,
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    ...SHADOWS.sm,
   },
   sectionTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: SPACING.m,
+    marginBottom: 12,
   },
   sectionTitle: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '800',
-    color: COLORS.text,
+    color: COLORS.textMain,
   },
-  optionsGroup: {
-    gap: SPACING.s,
+  optionsCol: {
+    gap: 8,
   },
-  radioItem: {
+  optionRowBtn: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#F9FAFB',
-    borderRadius: RADIUS.md,
-    paddingVertical: 12,
-    paddingHorizontal: SPACING.m,
+    justifyContent: 'space-between',
+    padding: 12,
+    borderRadius: RADIUS.sm,
+    backgroundColor: '#F8FAFC',
     borderWidth: 1.5,
     borderColor: COLORS.border,
   },
-  radioItemSelected: {
-    backgroundColor: '#EEF2FF',
+  optionRowBtnSelected: {
+    backgroundColor: COLORS.primaryLight,
     borderColor: COLORS.primary,
   },
-  radioLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.text,
-  },
-  radioLabelSelected: {
-    fontWeight: '800',
-    color: COLORS.primary,
-  },
-  speedPillsRow: {
-    flexDirection: 'row',
-    gap: SPACING.xs,
-  },
-  speedPill: {
+  optionTextCol: {
     flex: 1,
-    backgroundColor: '#F3F4F6',
-    borderRadius: RADIUS.md,
-    paddingVertical: 10,
-    alignItems: 'center',
   },
-  speedPillActive: {
-    backgroundColor: COLORS.secondary,
+  optionTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: COLORS.textMain,
   },
-  speedPillText: {
-    fontSize: 12,
-    fontWeight: '700',
+  optionTitleSelected: {
+    color: COLORS.primaryDark,
+  },
+  optionDesc: {
+    fontSize: 11,
     color: COLORS.textMuted,
+    marginTop: 2,
   },
-  speedPillTextActive: {
-    color: COLORS.white,
-  },
-  toggleRow: {
+  speedOptionsRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    gap: 6,
+    marginBottom: 10,
+  },
+  speedBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: RADIUS.sm,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
     alignItems: 'center',
   },
-  toggleTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: COLORS.text,
-    marginBottom: 2,
+  speedBtnSelected: {
+    backgroundColor: COLORS.secondaryLight,
+    borderColor: COLORS.secondary,
   },
-  toggleSub: {
+  speedBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.textMuted,
+  },
+  speedBtnTextSelected: {
+    color: COLORS.secondary,
+    fontWeight: '800',
+  },
+  testSoundBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: COLORS.secondaryLight,
+    paddingVertical: 10,
+    borderRadius: RADIUS.sm,
+  },
+  testSoundBtnText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: COLORS.secondary,
+  },
+  serverStatusBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  onlineDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: COLORS.accentGreen,
+  },
+  serverStatusText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.accentGreenDark,
+  },
+  serverUrlText: {
+    fontSize: 10,
+    color: COLORS.textLight,
+  },
+  resetWarningText: {
     fontSize: 12,
     color: COLORS.textMuted,
+    lineHeight: 18,
+    marginBottom: 10,
   },
   resetBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 10,
-    gap: 8,
+    gap: 6,
+    backgroundColor: '#FEE2E2',
+    paddingVertical: 11,
+    borderRadius: RADIUS.sm,
   },
   resetBtnText: {
-    fontSize: 14,
-    fontWeight: '700',
+    fontSize: 12,
+    fontWeight: '800',
     color: '#EF4444',
-  },
-  aboutCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    marginTop: SPACING.s,
-  },
-  aboutText: {
-    fontSize: 11,
-    color: COLORS.textMuted,
-    textAlign: 'center',
   },
 });

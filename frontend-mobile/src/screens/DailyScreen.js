@@ -19,6 +19,7 @@ import {
   Sparkles,
   Award,
   Mic,
+  Calendar,
 } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -62,7 +63,7 @@ export default function DailyScreen() {
       title_en: 'Solve a Practice Quiz',
       screen: 'Practice',
       icon: Award,
-      color: COLORS.accent,
+      color: COLORS.accentGreen,
       completed: true,
       xp: 20,
     },
@@ -73,7 +74,7 @@ export default function DailyScreen() {
       title_en: 'Practice Speaking with AI',
       screen: 'Speaking',
       icon: Mic,
-      color: COLORS.speak,
+      color: COLORS.accentAmberDark,
       completed: false,
       xp: 30,
     },
@@ -87,7 +88,7 @@ export default function DailyScreen() {
         if (stored) {
           const completedIds = JSON.parse(stored);
           setTasks(prev =>
-            prev.map(t => ({ ...t, completed: completedIds.includes(t.id) }))
+            prev.map(tk => ({ ...tk, completed: completedIds.includes(tk.id) }))
           );
         }
       } catch (e) {}
@@ -96,151 +97,122 @@ export default function DailyScreen() {
   }, []);
 
   const toggleTask = async (id) => {
-    const updated = tasks.map(t => (t.id === id ? { ...t, completed: !t.completed } : t));
+    const updated = tasks.map(tk => (tk.id === id ? { ...tk, completed: !tk.completed } : tk));
     setTasks(updated);
-
-    const completedIds = updated.filter(t => t.completed).map(t => t.id);
+    const completedIds = updated.filter(tk => tk.completed).map(tk => tk.id);
     try {
       await AsyncStorage.setItem(DAILY_TASKS_KEY, JSON.stringify(completedIds));
     } catch (e) {}
-
-    const allDone = updated.every(t => t.completed);
-    if (allDone) {
-      Alert.alert(
-        language === 'mr' ? 'सर्व कार्ये पूर्ण! 🏆' : 'All Tasks Completed! 🏆',
-        language === 'mr'
-          ? 'तुम्ही आजचे सर्व दैनंदिन ध्येय पूर्ण केले आहेत! सातत्य कायम ठेवा (+१०० XP)'
-          : 'You completed all daily tasks! Day streak preserved (+100 XP)'
-      );
-    }
   };
 
-  const completedCount = tasks.filter(t => t.completed).length;
-  const progressPercent = Math.round((completedCount / tasks.length) * 100);
+  const completedCount = tasks.filter(tk => tk.completed).length;
+  const totalXP = tasks.filter(tk => tk.completed).reduce((acc, curr) => acc + curr.xp, 0);
 
   return (
     <View style={styles.container}>
       <Header />
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Daily Goal Hero Banner */}
+        {/* Banner */}
         <View style={styles.heroCard}>
-          <View style={styles.heroTop}>
+          <View style={styles.heroTopRow}>
             <View style={styles.badge}>
-              <Target size={14} color="#C2410C" />
-              <Text style={styles.badgeText}>
-                {language === 'mr' ? 'आजचे दैनिक ध्येय' : 'Daily Challenge'}
-              </Text>
+              <Target size={14} color={COLORS.primaryDark} />
+              <Text style={styles.badgeText}>{language === 'mr' ? 'आजचे आव्हान' : 'Daily Challenge'}</Text>
             </View>
-
-            <View style={styles.streakBadge}>
-              <Flame size={16} color={COLORS.streak} />
-              <Text style={styles.streakBadgeText}>{streak} {language === 'mr' ? 'दिवस' : 'Days'}</Text>
+            <View style={styles.streakTag}>
+              <Flame size={14} color={COLORS.primary} fill={COLORS.primary} />
+              <Text style={styles.streakTagText}>{streak} {language === 'mr' ? 'दिवस सातत्य' : 'Days'}</Text>
             </View>
           </View>
 
-          <Text style={styles.heroTitle}>
-            {language === 'mr' ? 'दररोज १५ मिनिटे इंग्रजी शिका!' : 'Learn English 15 Mins Daily!'}
-          </Text>
+          <Text style={styles.heroTitle}>{language === 'mr' ? 'दररोज ५ मिनिटांचे मिशन!' : 'Daily 5-Minute Mission!'}</Text>
           <Text style={styles.heroSub}>
             {language === 'mr'
-              ? 'खालील सर्व कार्ये पूर्ण करून आजची सातत्य साखळी टिकवून ठेवा.'
-              : 'Complete all 4 steps to keep your learning streak burning strong.'}
+              ? 'दररोज नियमित अभ्यास केल्याने तुम्ही कमी वेळात आत्मविश्वासाने इंग्रजी बोलू शकाल.'
+              : 'Consistent 5-minute daily practice turns into effortless English fluency.'}
           </Text>
 
           {/* Progress Bar */}
-          <View style={styles.progressWrap}>
-            <View style={styles.progressLabels}>
-              <Text style={styles.progressLabelText}>
-                {completedCount} / {tasks.length} {language === 'mr' ? 'पूर्ण' : 'Completed'}
+          <View style={styles.progressContainer}>
+            <View style={styles.progressInfoRow}>
+              <Text style={styles.progressLabel}>
+                {language === 'mr' ? `पूर्ण: ${completedCount}/${tasks.length} मिशन्स` : `Completed: ${completedCount}/${tasks.length}`}
               </Text>
-              <Text style={styles.progressPctText}>{progressPercent}%</Text>
+              <Text style={styles.xpText}>+{totalXP} XP</Text>
             </View>
-            <View style={styles.progressTrack}>
-              <View style={[styles.progressFill, { width: `${progressPercent}%` }]} />
+            <View style={styles.progressBarBg}>
+              <View
+                style={[
+                  styles.progressBarFill,
+                  { width: `${(completedCount / tasks.length) * 100}%` },
+                ]}
+              />
             </View>
           </View>
         </View>
 
-        {/* Tasks Checklist */}
-        <View style={styles.tasksContainer}>
-          <Text style={styles.sectionHeading}>
-            {language === 'mr' ? 'आजची कार्य यादी (To-Do List)' : "Today's Checklist"}
+        {/* Motivational Quote Card */}
+        <View style={styles.quoteCard}>
+          <Text style={styles.quoteText}>
+            "English शिकण्यासाठी आधी English येणे गरजेचे नाही, फक्त रोज ५ मिनिटे सराव पुरेसा आहे!"
           </Text>
-
-          {tasks.map(task => {
-            const Icon = task.icon;
-            return (
-              <TouchableOpacity
-                key={task.id}
-                style={[styles.taskCard, task.completed && styles.taskCardCompleted]}
-                onPress={() => toggleTask(task.id)}
-                activeOpacity={0.85}
-              >
-                <TouchableOpacity
-                  style={styles.checkboxTouch}
-                  onPress={() => toggleTask(task.id)}
-                >
-                  {task.completed ? (
-                    <CheckCircle2 size={24} color={COLORS.secondary} />
-                  ) : (
-                    <Circle size={24} color={COLORS.border} />
-                  )}
-                </TouchableOpacity>
-
-                <View style={styles.taskInfo}>
-                  <Text
-                    style={[
-                      styles.taskTitle,
-                      task.completed && styles.taskTitleDone,
-                    ]}
-                  >
-                    {language === 'hi' && task.title_hi
-                      ? task.title_hi
-                      : (language === 'en' ? task.title_en : task.title_mr)}
-                  </Text>
-                  <View style={styles.taskMetaRow}>
-                    <Text style={[styles.taskXpBadge, { color: task.color }]}>
-                      +{task.xp} XP
-                    </Text>
-                  </View>
-                </View>
-
-                <TouchableOpacity
-                  style={[styles.taskGoBtn, { backgroundColor: task.color }]}
-                  onPress={() => navigation.navigate(task.screen)}
-                >
-                  <ArrowRight size={16} color={COLORS.white} />
-                </TouchableOpacity>
-              </TouchableOpacity>
-            );
-          })}
         </View>
 
-        {/* All Tasks Completed Banner */}
-        {progressPercent === 100 && (
-          <View style={styles.allDoneBanner}>
-            <Trophy size={36} color="#EAB308" />
-            <Text style={styles.allDoneTitle}>
-              {language === 'mr' ? 'आजचे सर्व सराव पूर्ण झाले! 🏆' : 'All Tasks Completed! 🏆'}
-            </Text>
-            <Text style={styles.allDoneSub}>
-              {language === 'mr'
-                ? 'उत्कृष्ट कामगिरी! तुमची प्रगती तपासा किंवा पुढील सराव सुरू ठेवा.'
-                : 'Awesome work! Check your progress analytics or continue exploring.'}
-            </Text>
-            <TouchableOpacity
-              style={styles.viewProgressBtn}
-              onPress={() => navigation.navigate('Progress')}
-            >
-              <Text style={styles.viewProgressBtnText}>
-                {language === 'mr' ? 'माझी प्रगती पहा ➔' : 'View Progress ➔'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )}
+        {/* Tasks List */}
+        <View style={styles.tasksSection}>
+          <Text style={styles.sectionHeading}>{language === 'mr' ? 'आजचे कार्य (Today\'s Tasks):' : 'Today\'s Checklist:'}</Text>
 
-        <View style={{ height: 40 }} />
+          <View style={styles.tasksList}>
+            {tasks.map((task, idx) => {
+              const TaskIcon = task.icon;
+              return (
+                <View key={task.id} style={[styles.taskCard, task.completed && styles.taskCardCompleted]}>
+                  <TouchableOpacity
+                    style={styles.checkboxBtn}
+                    onPress={() => toggleTask(task.id)}
+                    activeOpacity={0.7}
+                  >
+                    {task.completed ? (
+                      <CheckCircle2 size={24} color={COLORS.accentGreen} />
+                    ) : (
+                      <Circle size={24} color={COLORS.textLight} />
+                    )}
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.taskInfoCol}
+                    onPress={() => navigation.navigate(task.screen)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.taskTitleRow}>
+                      <View style={[styles.taskIconBadge, { backgroundColor: `${task.color}15` }]}>
+                        <TaskIcon size={16} color={task.color} />
+                      </View>
+                      <Text
+                        style={[
+                          styles.taskTitle,
+                          task.completed && styles.taskTitleCompleted,
+                        ]}
+                      >
+                        {language === 'mr' ? task.title_mr : language === 'hi' ? task.title_hi : task.title_en}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.taskActionBtn}
+                    onPress={() => navigation.navigate(task.screen)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.taskXpTag}>+{task.xp} XP</Text>
+                    <ArrowRight size={14} color={COLORS.primary} />
+                  </TouchableOpacity>
+                </View>
+              );
+            })}
+          </View>
+        </View>
       </ScrollView>
     </View>
   );
@@ -249,178 +221,184 @@ export default function DailyScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: COLORS.bgMain,
   },
   scrollContent: {
-    padding: SPACING.m,
+    padding: SPACING.md,
+    paddingBottom: 120,
   },
   heroCard: {
-    backgroundColor: '#FFF7ED',
-    borderRadius: RADIUS.xl,
-    padding: SPACING.l,
-    borderWidth: 1.5,
-    borderColor: '#FED7AA',
-    marginBottom: SPACING.l,
+    backgroundColor: COLORS.white,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
     ...SHADOWS.card,
+    marginBottom: SPACING.md,
   },
-  heroTop: {
+  heroTopRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: SPACING.s,
+    justifyContent: 'space-between',
+    marginBottom: 8,
   },
   badge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFEDD5',
+    gap: 4,
+    backgroundColor: COLORS.primaryLight,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: RADIUS.full,
-    gap: 4,
+    borderWidth: 1,
+    borderColor: COLORS.borderAmber,
   },
   badgeText: {
     fontSize: 11,
     fontWeight: '800',
-    color: '#C2410C',
-    textTransform: 'uppercase',
+    color: COLORS.primaryDark,
   },
-  streakBadge: {
+  streakTag: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.white,
+    gap: 4,
+    backgroundColor: COLORS.streakBg,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: RADIUS.full,
-    gap: 4,
+    borderWidth: 1,
+    borderColor: COLORS.streakBorder,
   },
-  streakBadgeText: {
-    fontSize: 12,
+  streakTagText: {
+    fontSize: 11,
     fontWeight: '800',
-    color: '#C2410C',
+    color: COLORS.primaryDark,
   },
   heroTitle: {
     fontSize: 18,
-    fontWeight: '800',
-    color: COLORS.text,
+    fontWeight: '900',
+    color: COLORS.textMain,
     marginBottom: 4,
   },
   heroSub: {
-    fontSize: 13,
+    fontSize: 12,
     color: COLORS.textMuted,
     lineHeight: 18,
-    marginBottom: SPACING.m,
+    marginBottom: 12,
   },
-  progressWrap: {},
-  progressLabels: {
+  progressContainer: {
+    gap: 6,
+  },
+  progressInfoRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 6,
+    alignItems: 'center',
   },
-  progressLabelText: {
+  progressLabel: {
     fontSize: 12,
     fontWeight: '700',
-    color: COLORS.text,
+    color: COLORS.textMain,
   },
-  progressPctText: {
+  xpText: {
     fontSize: 12,
-    fontWeight: '800',
-    color: '#C2410C',
+    fontWeight: '900',
+    color: COLORS.accentGreen,
   },
-  progressTrack: {
-    height: 10,
-    backgroundColor: '#FED7AA',
-    borderRadius: RADIUS.full,
+  progressBarBg: {
+    height: 6,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 3,
     overflow: 'hidden',
   },
-  progressFill: {
+  progressBarFill: {
     height: '100%',
-    backgroundColor: '#EA580C',
-    borderRadius: RADIUS.full,
+    backgroundColor: COLORS.primary,
+    borderRadius: 3,
   },
-  tasksContainer: {
-    gap: SPACING.m,
+  quoteCard: {
+    backgroundColor: COLORS.secondaryLight,
+    borderRadius: RADIUS.md,
+    padding: 12,
+    marginBottom: SPACING.md,
+    borderWidth: 1,
+    borderColor: '#C7D2FE',
+  },
+  quoteText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.secondaryDark,
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  tasksSection: {
+    gap: 10,
   },
   sectionHeading: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '800',
-    color: COLORS.text,
-    marginBottom: SPACING.xs,
+    color: COLORS.textMain,
+    marginBottom: 2,
+  },
+  tasksList: {
+    gap: 10,
   },
   taskCard: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: COLORS.white,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.m,
-    gap: SPACING.m,
-    ...SHADOWS.card,
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    ...SHADOWS.sm,
+    gap: 10,
   },
   taskCardCompleted: {
-    backgroundColor: '#F0FDF4',
-    borderWidth: 1,
-    borderColor: '#BBF7D0',
+    backgroundColor: '#F8FAFC',
+    borderColor: '#E2E8F0',
   },
-  checkboxTouch: {
+  checkboxBtn: {
     padding: 2,
   },
-  taskInfo: {
+  taskInfoCol: {
     flex: 1,
   },
-  taskTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: COLORS.text,
-    marginBottom: 2,
-  },
-  taskTitleDone: {
-    color: '#15803D',
-  },
-  taskMetaRow: {
+  taskTitleRow: {
     flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
-  taskXpBadge: {
-    fontSize: 11,
-    fontWeight: '800',
-  },
-  taskGoBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+  taskIconBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: RADIUS.sm,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  allDoneBanner: {
-    marginTop: SPACING.l,
-    backgroundColor: '#FEFCE8',
-    borderRadius: RADIUS.xl,
-    padding: SPACING.l,
-    alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: '#FEF08A',
-    ...SHADOWS.card,
-  },
-  allDoneTitle: {
-    fontSize: 17,
+  taskTitle: {
+    fontSize: 13,
     fontWeight: '800',
-    color: '#854D0E',
-    marginTop: 8,
-    marginBottom: 4,
+    color: COLORS.textMain,
+    flex: 1,
   },
-  allDoneSub: {
-    fontSize: 13,
+  taskTitleCompleted: {
     color: COLORS.textMuted,
-    textAlign: 'center',
-    marginBottom: SPACING.m,
+    textDecorationLine: 'line-through',
   },
-  viewProgressBtn: {
-    backgroundColor: COLORS.primary,
-    paddingVertical: 10,
-    paddingHorizontal: SPACING.xl,
-    borderRadius: RADIUS.md,
+  taskActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FFF7ED',
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: RADIUS.full,
+    borderWidth: 1,
+    borderColor: '#FED7AA',
   },
-  viewProgressBtnText: {
-    color: COLORS.white,
-    fontSize: 13,
-    fontWeight: '700',
+  taskXpTag: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: COLORS.primaryDark,
   },
 });

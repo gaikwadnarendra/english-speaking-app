@@ -5,7 +5,7 @@ import { Volume2 } from 'lucide-react-native';
 import { COLORS, RADIUS, SPACING } from '../constants/theme';
 import { useApp } from '../context/AppContext';
 
-const AudioButton = ({ text, lang = 'en-US', label = '', size = 18, style }) => {
+const AudioButton = ({ text, lang = 'en-US', label = '', size = 34, style }) => {
   const { soundSpeed } = useApp();
   const [isPlaying, setIsPlaying] = useState(false);
 
@@ -17,10 +17,10 @@ const AudioButton = ({ text, lang = 'en-US', label = '', size = 18, style }) => 
       Speech.stop();
       Speech.speak(text, {
         language: lang,
-        rate: soundSpeed || 0.9,
+        rate: soundSpeed || 0.85,
         pitch: 1.0,
         onDone: () => setIsPlaying(false),
-        onError: () => setIsPlaying(false)
+        onError: () => setIsPlaying(false),
       });
     } catch (err) {
       console.warn('Speech error:', err);
@@ -28,21 +28,25 @@ const AudioButton = ({ text, lang = 'en-US', label = '', size = 18, style }) => 
     }
   };
 
+  const btnDiameter = typeof size === 'number' && size >= 28 ? size : 34;
+  const iconSize = Math.min(18, Math.round(btnDiameter * 0.5));
+
   return (
     <TouchableOpacity
       style={[
         styles.button,
+        !label && { width: btnDiameter, height: btnDiameter, borderRadius: btnDiameter / 2 },
         isPlaying && styles.buttonActive,
         label ? styles.buttonWithLabel : styles.buttonIconOnly,
-        style
+        style,
       ]}
       onPress={handleSpeak}
       activeOpacity={0.7}
       accessibilityLabel={`Pronounce ${text}`}
     >
       <Volume2
-        size={size}
-        color={isPlaying ? COLORS.primary : COLORS.secondary}
+        size={iconSize}
+        color={isPlaying ? COLORS.primaryDark : COLORS.secondary}
       />
       {label ? (
         <Text style={[styles.labelText, isPlaying && styles.labelActive]}>
@@ -59,28 +63,29 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: COLORS.secondaryLight,
-    borderRadius: RADIUS.full
   },
   buttonIconOnly: {
-    width: 34,
-    height: 34
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   buttonWithLabel: {
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.xs + 2,
-    gap: 6
+    borderRadius: RADIUS.full,
+    gap: 6,
   },
   buttonActive: {
-    backgroundColor: COLORS.primaryLight
+    backgroundColor: COLORS.primaryLight,
   },
   labelText: {
     fontSize: 12,
     fontWeight: '700',
-    color: COLORS.secondary
+    color: COLORS.secondary,
   },
   labelActive: {
-    color: COLORS.primaryDark
-  }
+    color: COLORS.primaryDark,
+  },
 });
 
 export default AudioButton;
+

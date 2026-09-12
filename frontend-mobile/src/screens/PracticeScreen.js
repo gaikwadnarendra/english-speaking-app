@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -19,6 +19,7 @@ import {
   Sparkles,
   Layers,
   ArrowLeftRight,
+  Trophy,
 } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Speech from 'expo-speech';
@@ -48,25 +49,25 @@ export default function PracticeScreen() {
 
   // ================= MCQ STATE =================
   const [quizzes, setQuizzes] = useState(INITIAL_PRACTICE_QUIZZES);
-  const [selectedTopic, setSelectedTopic] = useState('all'); // 'all' | 'vocabulary' | 'phrases' | 'grammar'
   const [quizIdx, setQuizIdx] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState(null);
   const [isAnswerSubmitted, setIsAnswerSubmitted] = useState(false);
 
   // ================= MATCHING PAIRS STATE =================
-  const [activePairSetIdx, setActivePairSetIdx] = useState(0);
+  const [pairSetIdx, setPairSetIdx] = useState(0);
+  const currentPairSet = MATCH_PAIRS_SETS[pairSetIdx] || MATCH_PAIRS_SETS[0];
   const [selectedLeft, setSelectedLeft] = useState(null);
   const [selectedRight, setSelectedRight] = useState(null);
   const [matchedIds, setMatchedIds] = useState([]);
-  const [wrongPair, setWrongPair] = useState(false);
 
   // ================= SENTENCE BUILDER STATE =================
   const [puzzleIdx, setPuzzleIdx] = useState(0);
+  const currentPuzzle = SENTENCE_PUZZLES[puzzleIdx] || SENTENCE_PUZZLES[0];
   const [assembledWords, setAssembledWords] = useState([]);
   const [availableWords, setAvailableWords] = useState([]);
   const [builderStatus, setBuilderStatus] = useState(null); // null | 'correct' | 'wrong'
 
-  // Load Score from storage
+  // Load Score
   useEffect(() => {
     const loadScore = async () => {
       try {
@@ -83,12 +84,11 @@ export default function PracticeScreen() {
     setStreak(prev => prev + 1);
     try {
       await AsyncStorage.setItem(PRACTICE_SCORE_KEY, newScore.toString());
-      await api.post('/api/progress/xp', { xp: points }).catch(() => {});
+      await api.post('/progress/xp', { xp: points }).catch(() => {});
     } catch (e) {}
   };
 
-  // Init Sentence Builder on puzzle change
-  const currentPuzzle = SENTENCE_PUZZLES[puzzleIdx] || SENTENCE_PUZZLES[0];
+  // Init Puzzle
   useEffect(() => {
     if (currentPuzzle) {
       setAvailableWords([...currentPuzzle.words].sort(() => 0.5 - Math.random()));
@@ -97,137 +97,57 @@ export default function PracticeScreen() {
     }
   }, [puzzleIdx]);
 
-  // Init Match Pairs on Set change
-  const currentPairSet = MATCH_PAIRS_SETS[activePairSetIdx] || MATCH_PAIRS_SETS[0];
+  // Handle Matching pair check
   useEffect(() => {
-    setSelectedLeft(null);
-    setSelectedRight(null);
-    setMatchedIds([]);
-    setWrongPair(false);
-  }, [activePairSetIdx]);
+    if (selectedLeft !== null && selectedRight !== null) {
+      if (selectedLeft === selectedRight) {
+        setMatchedIds(prev => [...prev, selectedLeft]);
+        addScore(10);
+        setSelectedLeft(null);
+        setSelectedRight(null);
+      } else {
+        setTimeout(() => {
+          setSelectedLeft(null);
+          setSelectedRight(null);
+        }, 600);
+      }
+    }
+  }, [selectedLeft, selectedRight]);
 
-  // Filtered Quizzes
-  const filteredQuizzes = useMemo(() => {
-    if (selectedTopic === 'all') return quizzes;
-    return quizzes.filter(q => q.topic === selectedTopic);
-  }, [quizzes, selectedTopic]);
+  const currentQuiz = quizzes[quizIdx] || quizzes[0];
 
-  const currentQuiz = filteredQuizzes[quizIdx] || filteredQuizzes[0] || {};
-
-  // Handle MCQ Option Select
-  const handleSelectOption = (opt) => {
+  const handleSelectAnswer = (idx) => {
     if (isAnswerSubmitted) return;
-    setSelectedAnswer(opt);
+    setSelectedAnswer(idx);
     setIsAnswerSubmitted(true);
-
-    if (opt === currentQuiz.correctAnswer) {
+    const correctIdx = currentQuiz.correctAnswerIdx !== undefined ? currentQuiz.correctAnswerIdx : 1;
+    if (idx === correctIdx) {
       addScore(10);
-      Speech.speak(opt, { language: 'en-US', rate: speechRate });
     } else {
       setStreak(0);
     }
   };
 
   const handleNextQuiz = () => {
-    setSelectedAnswer(null);
-    setIsAnswerSubmitted(false);
-    if (quizIdx < filteredQuizzes.length - 1) {
+    if (quizIdx < quizzes.length - 1) {
       setQuizIdx(prev => prev + 1);
+      setSelectedAnswer(null);
+      setIsAnswerSubmitted(false);
     } else {
       setQuizIdx(0);
-      Alert.alert(
-        language === 'mr' ? 'अभिनंदन! 🎉' : 'Great Job! 🎉',
-        language === 'mr' ? 'तुम्ही सर्व प्रश्न सोडवले आहेत!' : 'You have completed this quiz set!'
-      );
+      setSelectedAnswer(null);
+      setIsAnswerSubmitted(false);
     }
-  };
-
-  // Handle Match Pair Selection
-  const handleLeftClick = (pair) => {
-    if (matchedIds.includes(pair.id)) return;
-    setSelectedLeft(pair);
-    setWrongPair(false);
-
-    if (selectedRight) {
-      checkPair(pair, selectedRight);
-    }
-  };
-
-  const handleRightClick = (pair) => {
-    if (matchedIds.includes(pair.id)) return;
-    setSelectedRight(pair);
-    setWrongPair(false);
-
-    if (selectedLeft) {
-      checkPair(selectedLeft, pair);
-    }
-  };
-
-  const checkPair = (left, right) => {
-    if (left.id === right.id) {
-      // Correct match
-      const updated = [...matchedIds, left.id];
-      setMatchedIds(updated);
-      setSelectedLeft(null);
-      setSelectedRight(null);
-      addScore(10);
-      Speech.speak(right.right, { language: 'en-US', rate: speechRate });
-
-      if (updated.length === currentPairSet.pairs.length) {
-        addScore(30); // bonus for finishing set
-      }
-    } else {
-      // Wrong match
-      setWrongPair(true);
-      setStreak(0);
-      setTimeout(() => {
-        setSelectedLeft(null);
-        setSelectedRight(null);
-        setWrongPair(false);
-      }, 700);
-    }
-  };
-
-  // Handle Sentence Builder Word Tap
-  const handleTapAvailableWord = (word, index) => {
-    setAssembledWords([...assembledWords, word]);
-    const nextAvail = [...availableWords];
-    nextAvail.splice(index, 1);
-    setAvailableWords(nextAvail);
-    setBuilderStatus(null);
-  };
-
-  const handleTapAssembledWord = (word, index) => {
-    const nextAssembled = [...assembledWords];
-    nextAssembled.splice(index, 1);
-    setAssembledWords(nextAssembled);
-    setAvailableWords([...availableWords, word]);
-    setBuilderStatus(null);
   };
 
   const handleCheckSentence = () => {
-    const assembledText = assembledWords.join(' ').trim().toLowerCase();
-    const targetText = currentPuzzle.targetEn.trim().toLowerCase();
-
-    if (assembledText === targetText) {
+    const assembledStr = assembledWords.join(' ').toLowerCase().replace(/[.,]/g, '');
+    const targetStr = currentPuzzle.targetEn.toLowerCase().replace(/[.,]/g, '');
+    if (assembledStr === targetStr) {
       setBuilderStatus('correct');
-      addScore(20);
-      Speech.speak(currentPuzzle.targetEn, { language: 'en-US', rate: speechRate });
+      addScore(15);
     } else {
       setBuilderStatus('wrong');
-      setStreak(0);
-    }
-  };
-
-  const handleNextPuzzle = () => {
-    if (puzzleIdx < SENTENCE_PUZZLES.length - 1) {
-      setPuzzleIdx(prev => prev + 1);
-    } else {
-      setPuzzleIdx(0);
-      Alert.alert(
-        language === 'mr' ? 'शाब्बास! 🎉' : 'Well Done! 🎉',
-        language === 'mr' ? 'तुम्ही सर्व वाक्य रचना कोडी सोडवली आहेत!' : 'You completed all sentence builder puzzles!'
-      );
     }
   };
 
@@ -235,438 +155,317 @@ export default function PracticeScreen() {
     <View style={styles.container}>
       <Header />
 
-      {/* Gamification Bar */}
-      <View style={styles.scoreBar}>
-        <View style={styles.scoreItem}>
-          <Award size={18} color={COLORS.accent} />
-          <Text style={styles.scoreText}>{score} XP</Text>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* Score & Streak Header Card */}
+        <View style={styles.scoreHeaderCard}>
+          <View style={styles.scoreCol}>
+            <View style={styles.scorePill}>
+              <Trophy size={14} color={COLORS.accentAmberDark} />
+              <Text style={styles.scorePillText}>{score} XP</Text>
+            </View>
+            <Text style={styles.scoreSub}>{language === 'mr' ? 'एकूण जमा गुण' : 'Total XP Earned'}</Text>
+          </View>
+
+          <View style={styles.streakCol}>
+            <View style={styles.streakPill}>
+              <Flame size={14} color={COLORS.primary} fill={COLORS.primary} />
+              <Text style={styles.streakPillText}>{streak} {language === 'mr' ? 'सलग' : 'Streak'}</Text>
+            </View>
+            <Text style={styles.scoreSub}>{language === 'mr' ? 'सलग अचूक उत्तरे' : 'Accuracy streak'}</Text>
+          </View>
         </View>
 
-        <View style={styles.streakItem}>
-          <Flame size={18} color={COLORS.streak} />
-          <Text style={styles.streakText}>{streak} {language === 'mr' ? 'सातत्य' : 'Streak'}</Text>
-        </View>
-      </View>
-
-      {/* 3-Mode Pill Switcher */}
-      <View style={styles.modeStrip}>
-        <TouchableOpacity
-          style={[styles.modeTab, activeMode === 'mcq' && styles.modeTabActive]}
-          onPress={() => setActiveMode('mcq')}
-          activeOpacity={0.8}
-        >
-          <HelpCircle size={15} color={activeMode === 'mcq' ? COLORS.white : COLORS.textMuted} />
-          <Text style={[styles.modeTabText, activeMode === 'mcq' && styles.modeTabTextActive]}>
-            {language === 'mr' ? 'क्विझ (MCQ)' : 'MCQ Quiz'}
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.modeTab, activeMode === 'matching' && styles.modeTabActive]}
-          onPress={() => setActiveMode('matching')}
-          activeOpacity={0.8}
-        >
-          <ArrowLeftRight size={15} color={activeMode === 'matching' ? COLORS.white : COLORS.textMuted} />
-          <Text style={[styles.modeTabText, activeMode === 'matching' && styles.modeTabTextActive]}>
-            {language === 'mr' ? 'जोड्या जुळवा' : 'Match Pairs'}
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.modeTab, activeMode === 'builder' && styles.modeTabActive]}
-          onPress={() => setActiveMode('builder')}
-          activeOpacity={0.8}
-        >
-          <Puzzle size={15} color={activeMode === 'builder' ? COLORS.white : COLORS.textMuted} />
-          <Text style={[styles.modeTabText, activeMode === 'builder' && styles.modeTabTextActive]}>
-            {language === 'mr' ? 'वाक्य रचना' : 'Sentence Builder'}
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* ================= MODE 1: MCQ QUIZZES ================= */}
-      {activeMode === 'mcq' && (
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          {/* Topic Filter Chips */}
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.topicChipsRow}
+        {/* Mode Selector Tabs */}
+        <View style={styles.modeTabsRow}>
+          <TouchableOpacity
+            style={[styles.modeTabBtn, activeMode === 'mcq' && styles.modeTabBtnActive]}
+            onPress={() => setActiveMode('mcq')}
           >
-            {[
-              { id: 'all', label: language === 'mr' ? 'सर्व सराव' : 'All Topics' },
-              { id: 'vocabulary', label: language === 'mr' ? 'शब्दसंग्रह' : 'Vocabulary' },
-              { id: 'phrases', label: language === 'mr' ? 'दैनंदिन वाक्ये' : 'Phrases' },
-              { id: 'grammar', label: language === 'mr' ? 'व्याकरण व काळ' : 'Grammar' },
-            ].map(topic => {
-              const isSelected = selectedTopic === topic.id;
-              return (
-                <TouchableOpacity
-                  key={topic.id}
-                  style={[styles.topicChip, isSelected && styles.topicChipActive]}
-                  onPress={() => {
-                    setSelectedTopic(topic.id);
-                    setQuizIdx(0);
-                    setSelectedAnswer(null);
-                    setIsAnswerSubmitted(false);
-                  }}
-                >
-                  <Text style={[styles.topicChipText, isSelected && styles.topicChipTextActive]}>
-                    {topic.label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
+            <HelpCircle size={15} color={activeMode === 'mcq' ? COLORS.white : COLORS.textMuted} />
+            <Text style={[styles.modeTabText, activeMode === 'mcq' && styles.modeTabTextActive]}>
+              {language === 'mr' ? 'MCQ क्विझ' : 'MCQ Quiz'}
+            </Text>
+          </TouchableOpacity>
 
-          {/* Quiz Card */}
-          <View style={styles.quizCard}>
-            <View style={styles.quizCardHeader}>
-              <View style={styles.quizNumBadge}>
-                <Text style={styles.quizNumText}>Q {quizIdx + 1} / {filteredQuizzes.length}</Text>
-              </View>
-              <Text style={styles.quizTopicTag}>{currentQuiz.topic?.toUpperCase()}</Text>
+          <TouchableOpacity
+            style={[styles.modeTabBtn, activeMode === 'matching' && styles.modeTabBtnActive]}
+            onPress={() => setActiveMode('matching')}
+          >
+            <ArrowLeftRight size={15} color={activeMode === 'matching' ? COLORS.white : COLORS.textMuted} />
+            <Text style={[styles.modeTabText, activeMode === 'matching' && styles.modeTabTextActive]}>
+              {language === 'mr' ? 'जोड्या लावा' : 'Match Pairs'}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.modeTabBtn, activeMode === 'builder' && styles.modeTabBtnActive]}
+            onPress={() => setActiveMode('builder')}
+          >
+            <Puzzle size={15} color={activeMode === 'builder' ? COLORS.white : COLORS.textMuted} />
+            <Text style={[styles.modeTabText, activeMode === 'builder' && styles.modeTabTextActive]}>
+              {language === 'mr' ? 'वाक्य जोडा' : 'Word Puzzle'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* ================= 1. MCQ MODE ================= */}
+        {activeMode === 'mcq' && currentQuiz && (
+          <View style={styles.mcqCard}>
+            <View style={styles.mcqTopRow}>
+              <Text style={styles.mcqCounter}>
+                {language === 'mr' ? `प्रश्न ${quizIdx + 1}/${quizzes.length}` : `Question ${quizIdx + 1}/${quizzes.length}`}
+              </Text>
+              <AudioButton text={currentQuiz.question_en || currentQuiz.correctAnswer} size={36} />
             </View>
 
-            <Text style={styles.quizQuestionLocal}>
-              {language === 'hi' && currentQuiz.question_hi
-                ? currentQuiz.question_hi
-                : (currentQuiz.question_mr || currentQuiz.question_en)}
+            <Text style={styles.mcqQuestionText}>
+              {language === 'mr' ? currentQuiz.question_mr : language === 'hi' ? currentQuiz.question_hi : currentQuiz.question_en}
             </Text>
 
-            {currentQuiz.question_en && (
-              <View style={styles.quizQuestionEnRow}>
-                <Text style={styles.quizQuestionEn}>{currentQuiz.question_en}</Text>
-                <AudioButton text={currentQuiz.question_en} size={28} />
-              </View>
+            {currentQuiz.sentence && (
+              <Text style={styles.mcqSentenceHint}>"{currentQuiz.sentence}"</Text>
             )}
 
-            {/* Options */}
-            <View style={styles.optionsContainer}>
-              {currentQuiz.options?.map((opt, idx) => {
-                const isSelected = selectedAnswer === opt;
-                const isCorrect = opt === currentQuiz.correctAnswer;
+            <View style={styles.mcqOptionsCol}>
+              {currentQuiz.options.map((opt, optIdx) => {
+                const isSelected = selectedAnswer === optIdx;
+                const correctIdx = currentQuiz.correctAnswerIdx !== undefined ? currentQuiz.correctAnswerIdx : 1;
+                const isCorrect = optIdx === correctIdx;
 
-                let optStyle = styles.optButton;
-                let optTextStyle = styles.optButtonText;
-
+                let optStyle = styles.mcqOptBtn;
                 if (isAnswerSubmitted) {
-                  if (isCorrect) {
-                    optStyle = [styles.optButton, styles.optCorrect];
-                    optTextStyle = [styles.optButtonText, styles.optTextCorrect];
-                  } else if (isSelected) {
-                    optStyle = [styles.optButton, styles.optWrong];
-                    optTextStyle = [styles.optButtonText, styles.optTextWrong];
-                  }
+                  if (isCorrect) optStyle = [styles.mcqOptBtn, styles.mcqOptCorrect];
+                  else if (isSelected && !isCorrect) optStyle = [styles.mcqOptBtn, styles.mcqOptWrong];
                 } else if (isSelected) {
-                  optStyle = [styles.optButton, styles.optSelected];
-                  optTextStyle = [styles.optButtonText, styles.optTextSelected];
+                  optStyle = [styles.mcqOptBtn, styles.mcqOptSelected];
                 }
 
                 return (
                   <TouchableOpacity
-                    key={idx}
+                    key={optIdx}
                     style={optStyle}
-                    disabled={isAnswerSubmitted}
-                    onPress={() => handleSelectOption(opt)}
+                    onPress={() => handleSelectAnswer(optIdx)}
                     activeOpacity={0.8}
                   >
-                    <Text style={optTextStyle}>{opt}</Text>
+                    <View style={styles.mcqOptCircle}>
+                      <Text style={styles.mcqOptCircleText}>{String.fromCharCode(65 + optIdx)}</Text>
+                    </View>
+                    <Text style={styles.mcqOptText}>{opt}</Text>
                     {isAnswerSubmitted && isCorrect && (
-                      <CheckCircle2 size={18} color="#15803D" />
+                      <CheckCircle2 size={18} color={COLORS.accentGreen} style={{ marginLeft: 'auto' }} />
                     )}
                     {isAnswerSubmitted && isSelected && !isCorrect && (
-                      <XCircle size={18} color="#B91C1C" />
+                      <XCircle size={18} color={COLORS.accentRed} style={{ marginLeft: 'auto' }} />
                     )}
                   </TouchableOpacity>
                 );
               })}
             </View>
 
-            {/* Explanation Breakdown */}
+            {/* Explanation & Next */}
             {isAnswerSubmitted && (
-              <View style={styles.explanationBox}>
-                <Text style={styles.explanationTitle}>
-                  {selectedAnswer === currentQuiz.correctAnswer
-                    ? (language === 'mr' ? 'उत्कृष्ट! बरोबर उत्तर 🎉 (+१० XP)' : 'Excellent! Correct Answer 🎉 (+10 XP)')
-                    : (language === 'mr' ? 'चूक! योग्य उत्तर खालीलप्रमाणे आहे:' : 'Incorrect! Correct answer is:')}
+              <View style={styles.mcqFeedbackBox}>
+                <Text style={styles.mcqFeedbackTitle}>
+                  {selectedAnswer === (currentQuiz.correctAnswerIdx !== undefined ? currentQuiz.correctAnswerIdx : 1)
+                    ? (language === 'mr' ? '🎉 बरोबर उत्तर! (+10 XP)' : '🎉 Correct! (+10 XP)')
+                    : (language === 'mr' ? '❌ चूक! योग्य उत्तर पहा:' : '❌ Incorrect! Correct answer:')}
                 </Text>
-                <Text style={styles.explanationBody}>
-                  💡 {language === 'hi' && currentQuiz.explanation_hi
-                    ? currentQuiz.explanation_hi
-                    : currentQuiz.explanation_mr}
-                </Text>
-
-                <TouchableOpacity
-                  style={styles.nextQuizBtn}
-                  onPress={handleNextQuiz}
-                  activeOpacity={0.85}
-                >
-                  <Text style={styles.nextQuizBtnText}>
-                    {language === 'mr' ? 'पुढील प्रश्न सोडवा ➔' : 'Next Question ➔'}
-                  </Text>
+                {currentQuiz.explanation_mr && (
+                  <Text style={styles.mcqExplanationText}>{currentQuiz.explanation_mr}</Text>
+                )}
+                <TouchableOpacity style={styles.mcqNextBtn} onPress={handleNextQuiz}>
+                  <Text style={styles.mcqNextBtnText}>{language === 'mr' ? 'पुढील प्रश्न →' : 'Next Question →'}</Text>
                 </TouchableOpacity>
               </View>
             )}
           </View>
+        )}
 
-          <View style={{ height: 40 }} />
-        </ScrollView>
-      )}
+        {/* ================= 2. MATCHING PAIRS MODE ================= */}
+        {activeMode === 'matching' && currentPairSet && (
+          <View style={styles.matchingCard}>
+            <Text style={styles.matchingHint}>
+              {language === 'mr' ? 'डावीकडील इंग्रजी शब्द आणि उजवीकडील मराठी अर्थाच्या जोड्या लावा.' : 'Match English words with Marathi meanings.'}
+            </Text>
 
-      {/* ================= MODE 2: MATCH THE PAIRS ================= */}
-      {activeMode === 'matching' && (
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          {/* Pair Set Switcher */}
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.topicChipsRow}
-          >
-            {MATCH_PAIRS_SETS.map((set, idx) => {
-              const isSelected = activePairSetIdx === idx;
-              return (
-                <TouchableOpacity
-                  key={set.id}
-                  style={[styles.topicChip, isSelected && styles.topicChipActive]}
-                  onPress={() => setActivePairSetIdx(idx)}
-                >
-                  <Text style={[styles.topicChipText, isSelected && styles.topicChipTextActive]}>
-                    {set.title_mr}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-
-          <View style={styles.matchingBoardCard}>
-            <View style={styles.matchingHeader}>
-              <Text style={styles.matchingTitle}>
-                {language === 'mr' ? 'योग्य जोड्या जुळवा' : 'Match the Pairs'}
-              </Text>
-              <Text style={styles.matchingProgress}>
-                {matchedIds.length} / {currentPairSet.pairs.length} {language === 'mr' ? 'जुळले' : 'Matched'}
-              </Text>
-            </View>
-
-            <View style={styles.columnsContainer}>
-              {/* Left Column (Marathi/Hindi) */}
-              <View style={styles.matchingCol}>
-                <Text style={styles.colHeader}>{language === 'mr' ? 'मराठी अर्थ' : 'Meaning'}</Text>
+            <View style={styles.matchColsRow}>
+              {/* Left Col (English) */}
+              <View style={styles.matchCol}>
+                <Text style={styles.matchColHeading}>English</Text>
                 {currentPairSet.pairs.map(p => {
                   const isMatched = matchedIds.includes(p.id);
-                  const isSelected = selectedLeft?.id === p.id;
-
-                  let itemStyle = styles.matchItem;
-                  let itemTextStyle = styles.matchItemText;
-
-                  if (isMatched) {
-                    itemStyle = [styles.matchItem, styles.matchItemMatched];
-                    itemTextStyle = [styles.matchItemText, styles.matchItemTextMatched];
-                  } else if (isSelected) {
-                    itemStyle = [styles.matchItem, styles.matchItemSelected];
-                    itemTextStyle = [styles.matchItemText, styles.matchItemTextSelected];
-                  }
-
+                  const isSelected = selectedLeft === p.id;
                   return (
                     <TouchableOpacity
                       key={p.id}
-                      style={itemStyle}
+                      style={[
+                        styles.matchItemBtn,
+                        isSelected && styles.matchItemBtnSelected,
+                        isMatched && styles.matchItemBtnMatched,
+                      ]}
                       disabled={isMatched}
-                      onPress={() => handleLeftClick(p)}
-                      activeOpacity={0.8}
+                      onPress={() => setSelectedLeft(p.id)}
                     >
-                      <Text style={itemTextStyle}>{p.left}</Text>
+                      <Text style={[styles.matchItemText, isMatched && styles.matchItemTextMatched]}>
+                        {p.en}
+                      </Text>
                     </TouchableOpacity>
                   );
                 })}
               </View>
 
-              {/* Right Column (English) */}
-              <View style={styles.matchingCol}>
-                <Text style={styles.colHeader}>English Word</Text>
+              {/* Right Col (Marathi) */}
+              <View style={styles.matchCol}>
+                <Text style={styles.matchColHeading}>मराठी</Text>
                 {currentPairSet.pairs.map(p => {
                   const isMatched = matchedIds.includes(p.id);
-                  const isSelected = selectedRight?.id === p.id;
-
-                  let itemStyle = styles.matchItem;
-                  let itemTextStyle = styles.matchItemText;
-
-                  if (isMatched) {
-                    itemStyle = [styles.matchItem, styles.matchItemMatched];
-                    itemTextStyle = [styles.matchItemText, styles.matchItemTextMatched];
-                  } else if (isSelected) {
-                    itemStyle = [styles.matchItem, styles.matchItemSelected];
-                    itemTextStyle = [styles.matchItemText, styles.matchItemTextSelected];
-                  }
-
+                  const isSelected = selectedRight === p.id;
                   return (
                     <TouchableOpacity
                       key={p.id}
-                      style={itemStyle}
+                      style={[
+                        styles.matchItemBtn,
+                        isSelected && styles.matchItemBtnSelected,
+                        isMatched && styles.matchItemBtnMatched,
+                      ]}
                       disabled={isMatched}
-                      onPress={() => handleRightClick(p)}
-                      activeOpacity={0.8}
+                      onPress={() => setSelectedRight(p.id)}
                     >
-                      <Text style={itemTextStyle}>{p.right}</Text>
+                      <Text style={[styles.matchItemText, isMatched && styles.matchItemTextMatched]}>
+                        {language === 'mr' ? p.mr : p.hi || p.mr}
+                      </Text>
                     </TouchableOpacity>
                   );
                 })}
               </View>
             </View>
 
-            {/* Set Completion Banner */}
             {matchedIds.length === currentPairSet.pairs.length && (
-              <View style={styles.allMatchedBox}>
-                <Sparkles size={24} color={COLORS.secondary} />
-                <Text style={styles.allMatchedTitle}>
-                  {language === 'mr' ? 'सर्व जोड्या अचूक जुळल्या! 🎉 (+५० XP)' : 'All Pairs Matched! 🎉 (+50 XP)'}
+              <View style={styles.matchWinBox}>
+                <Sparkles size={24} color={COLORS.accentAmberDark} />
+                <Text style={styles.matchWinTitle}>
+                  {language === 'mr' ? 'अभिनंदन! सर्व जोड्या जुळल्या! (+50 XP)' : 'Awesome! All matched!'}
                 </Text>
                 <TouchableOpacity
-                  style={styles.nextSetBtn}
+                  style={styles.matchNextBtn}
                   onPress={() => {
-                    if (activePairSetIdx < MATCH_PAIRS_SETS.length - 1) {
-                      setActivePairSetIdx(prev => prev + 1);
-                    } else {
-                      setActivePairSetIdx(0);
-                    }
+                    setPairSetIdx((pairSetIdx + 1) % MATCH_PAIRS_SETS.length);
+                    setMatchedIds([]);
+                    setSelectedLeft(null);
+                    setSelectedRight(null);
                   }}
                 >
-                  <Text style={styles.nextSetBtnText}>
-                    {language === 'mr' ? 'पुढील जोड्यांचा संच ➔' : 'Next Pair Set ➔'}
-                  </Text>
+                  <Text style={styles.matchNextBtnText}>{language === 'mr' ? 'नवीन सेट खेळा →' : 'Next Set →'}</Text>
                 </TouchableOpacity>
               </View>
             )}
           </View>
+        )}
 
-          <View style={{ height: 40 }} />
-        </ScrollView>
-      )}
-
-      {/* ================= MODE 3: SENTENCE BUILDER ================= */}
-      {activeMode === 'builder' && (
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* ================= 3. SENTENCE BUILDER MODE ================= */}
+        {activeMode === 'builder' && currentPuzzle && (
           <View style={styles.builderCard}>
-            <View style={styles.builderHeader}>
-              <View style={styles.quizNumBadge}>
-                <Text style={styles.quizNumText}>
-                  {language === 'mr' ? `वाक्य ${puzzleIdx + 1} / ${SENTENCE_PUZZLES.length}` : `Sentence ${puzzleIdx + 1} / ${SENTENCE_PUZZLES.length}`}
-                </Text>
-              </View>
-              <TouchableOpacity
-                onPress={() => {
-                  setAvailableWords([...currentPuzzle.words].sort(() => 0.5 - Math.random()));
-                  setAssembledWords([]);
-                  setBuilderStatus(null);
-                }}
-              >
-                <RotateCcw size={18} color={COLORS.textMuted} />
-              </TouchableOpacity>
-            </View>
-
-            {/* Native Sentence Target Prompt */}
-            <Text style={styles.targetSentencePrompt}>
-              {language === 'hi' && currentPuzzle.meaning_hi
-                ? currentPuzzle.meaning_hi
-                : currentPuzzle.meaning_mr}
+            <Text style={styles.builderTargetMeaning}>
+              {language === 'mr' ? currentPuzzle.meaning_mr : currentPuzzle.meaning_hi || currentPuzzle.meaning_mr}
             </Text>
-            <Text style={styles.builderSubHint}>
-              {language === 'mr' ? 'योग्य क्रमाने इंग्रजी शब्द निवडून वाक्य तयार करा:' : 'Tap words in correct order to form English sentence:'}
+            <Text style={styles.builderHint}>
+              {language === 'mr' ? 'खालील शब्दांवर टॅप करून योग्य इंग्रजी वाक्य बनवा:' : 'Tap words in order to form the correct sentence:'}
             </Text>
 
-            {/* Assembled Sentence Drop Zone */}
-            <View style={styles.assembledDropZone}>
+            {/* Assembled Words Box */}
+            <View style={styles.assembledBox}>
               {assembledWords.length === 0 ? (
-                <Text style={styles.dropZonePlaceholder}>
-                  {language === 'mr' ? 'खालील शब्दांवर टॅप करा...' : 'Tap words below...'}
+                <Text style={styles.assembledPlaceholder}>
+                  {language === 'mr' ? 'शब्द येथे दिसतील...' : 'Tapped words appear here...'}
                 </Text>
               ) : (
-                <View style={styles.wordChipsRow}>
+                <View style={styles.tokensRow}>
                   {assembledWords.map((word, wIdx) => (
                     <TouchableOpacity
                       key={wIdx}
-                      style={styles.assembledChip}
-                      onPress={() => handleTapAssembledWord(word, wIdx)}
+                      style={styles.assembledToken}
+                      onPress={() => {
+                        setAssembledWords(prev => prev.filter((_, i) => i !== wIdx));
+                        setAvailableWords(prev => [...prev, word]);
+                        setBuilderStatus(null);
+                      }}
                     >
-                      <Text style={styles.assembledChipText}>{word}</Text>
+                      <Text style={styles.assembledTokenText}>{word}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
               )}
             </View>
 
-            {/* Available Word Chips */}
-            <Text style={styles.availableHeading}>
-              {language === 'mr' ? 'उपलब्ध शब्द:' : 'Available Words:'}
-            </Text>
-            <View style={styles.availableChipsGrid}>
+            {/* Available Word Bank Tokens */}
+            <View style={styles.availableBox}>
               {availableWords.map((word, wIdx) => (
                 <TouchableOpacity
                   key={wIdx}
-                  style={styles.availableChip}
-                  onPress={() => handleTapAvailableWord(word, wIdx)}
+                  style={styles.availableToken}
+                  onPress={() => {
+                    setAvailableWords(prev => prev.filter((_, i) => i !== wIdx));
+                    setAssembledWords(prev => [...prev, word]);
+                    setBuilderStatus(null);
+                  }}
                 >
-                  <Text style={styles.availableChipText}>{word}</Text>
+                  <Text style={styles.availableTokenText}>{word}</Text>
                 </TouchableOpacity>
               ))}
             </View>
 
-            {/* Validation Feedback */}
+            {/* Feedback & Actions */}
             {builderStatus === 'correct' && (
               <View style={styles.builderSuccessBox}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                  <CheckCircle2 size={18} color="#15803D" />
-                  <Text style={styles.builderSuccessText}>
-                    {language === 'mr' ? 'अचूक वाक्य रचना! 🎉 (+२० XP)' : 'Correct Sentence! 🎉 (+20 XP)'}
-                  </Text>
-                </View>
-                <View style={styles.audioRow}>
-                  <Text style={styles.fullSentenceEn}>"{currentPuzzle.targetEn}"</Text>
-                  <AudioButton text={currentPuzzle.targetEn} size={30} />
-                </View>
-
-                <TouchableOpacity
-                  style={styles.nextQuizBtn}
-                  onPress={handleNextPuzzle}
-                  activeOpacity={0.85}
-                >
-                  <Text style={styles.nextQuizBtnText}>
-                    {language === 'mr' ? 'पुढील वाक्य ➔' : 'Next Sentence ➔'}
-                  </Text>
-                </TouchableOpacity>
+                <CheckCircle2 size={20} color={COLORS.accentGreen} />
+                <Text style={styles.builderSuccessText}>
+                  {language === 'mr' ? '✓ अगदी बरोबर वाक्य! (+15 XP)' : '✓ Correct Sentence! (+15 XP)'}
+                </Text>
+                <AudioButton text={currentPuzzle.targetEn} size={36} />
               </View>
             )}
 
             {builderStatus === 'wrong' && (
               <View style={styles.builderWrongBox}>
+                <XCircle size={20} color={COLORS.accentRed} />
                 <Text style={styles.builderWrongText}>
-                  {language === 'mr' ? 'वाक्य रचना चुकीची आहे. शब्दांचा क्रम तपासून पुन्हा प्रयत्न करा!' : 'Order is incorrect. Rearrange words and try again!'}
+                  {language === 'mr' ? 'वाक्यरचना बरोबर नाही, पुन्हा प्रयत्न करा.' : 'Incorrect order, try again.'}
                 </Text>
               </View>
             )}
 
-            {builderStatus !== 'correct' && (
+            <View style={styles.builderActionsRow}>
               <TouchableOpacity
-                style={[
-                  styles.checkSentenceBtn,
-                  assembledWords.length === 0 && { opacity: 0.5 },
-                ]}
-                disabled={assembledWords.length === 0}
-                onPress={handleCheckSentence}
-                activeOpacity={0.85}
+                style={styles.builderResetBtn}
+                onPress={() => {
+                  setAvailableWords([...currentPuzzle.words].sort(() => 0.5 - Math.random()));
+                  setAssembledWords([]);
+                  setBuilderStatus(null);
+                }}
               >
-                <CheckCircle2 size={18} color={COLORS.white} />
-                <Text style={styles.checkSentenceBtnText}>
-                  {language === 'mr' ? 'वाक्य तपासा' : 'Check Sentence'}
-                </Text>
+                <RotateCcw size={16} color={COLORS.textMuted} />
               </TouchableOpacity>
-            )}
-          </View>
 
-          <View style={{ height: 40 }} />
-        </ScrollView>
-      )}
+              {builderStatus === 'correct' ? (
+                <TouchableOpacity
+                  style={styles.builderNextBtn}
+                  onPress={() => setPuzzleIdx((puzzleIdx + 1) % SENTENCE_PUZZLES.length)}
+                >
+                  <Text style={styles.builderNextBtnText}>{language === 'mr' ? 'पुढील वाक्य →' : 'Next Puzzle →'}</Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  style={[styles.builderCheckBtn, assembledWords.length === 0 && styles.builderCheckBtnDisabled]}
+                  disabled={assembledWords.length === 0}
+                  onPress={handleCheckSentence}
+                >
+                  <Text style={styles.builderCheckBtnText}>{language === 'mr' ? 'वाक्य तपासा' : 'Check Sentence'}</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        )}
+      </ScrollView>
     </View>
   );
 }
@@ -674,464 +473,415 @@ export default function PracticeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: COLORS.bgMain,
   },
-  scoreBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: COLORS.white,
-    paddingHorizontal: SPACING.m,
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+  scrollContent: {
+    padding: SPACING.md,
+    paddingBottom: 120,
   },
-  scoreItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFBEB',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: RADIUS.full,
-    gap: 6,
-  },
-  scoreText: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#B45309',
-  },
-  streakItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFF7ED',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: RADIUS.full,
-    gap: 6,
-  },
-  streakText: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#C2410C',
-  },
-  modeStrip: {
+  scoreHeaderCard: {
     flexDirection: 'row',
     backgroundColor: COLORS.white,
-    paddingHorizontal: SPACING.m,
-    paddingVertical: SPACING.s,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-    gap: SPACING.xs,
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    ...SHADOWS.sm,
   },
-  modeTab: {
+  scoreCol: {
+    flex: 1,
+    borderRightWidth: 1,
+    borderRightColor: '#F1F5F9',
+    paddingRight: 10,
+  },
+  streakCol: {
+    flex: 1,
+    paddingLeft: 10,
+  },
+  scorePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  scorePillText: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: COLORS.accentAmberDark,
+  },
+  streakPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  streakPillText: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: COLORS.primaryDark,
+  },
+  scoreSub: {
+    fontSize: 11,
+    color: COLORS.textMuted,
+    marginTop: 2,
+  },
+  modeTabsRow: {
+    flexDirection: 'row',
+    backgroundColor: '#E2E8F0',
+    borderRadius: RADIUS.md,
+    padding: 3,
+    marginBottom: SPACING.md,
+    gap: 4,
+  },
+  modeTabBtn: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 8,
-    borderRadius: RADIUS.md,
-    backgroundColor: '#F3F4F6',
     gap: 4,
+    paddingVertical: 9,
+    borderRadius: RADIUS.sm,
   },
-  modeTabActive: {
-    backgroundColor: COLORS.accent,
+  modeTabBtnActive: {
+    backgroundColor: COLORS.secondary,
+    ...SHADOWS.sm,
   },
   modeTabText: {
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '800',
     color: COLORS.textMuted,
   },
   modeTabTextActive: {
     color: COLORS.white,
-    fontWeight: '800',
   },
-  scrollContent: {
-    padding: SPACING.m,
-  },
-  topicChipsRow: {
-    flexDirection: 'row',
-    gap: SPACING.xs,
-    marginBottom: SPACING.m,
-  },
-  topicChip: {
+  mcqCard: {
     backgroundColor: COLORS.white,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: RADIUS.full,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.lg,
     borderWidth: 1,
     borderColor: COLORS.border,
+    ...SHADOWS.card,
   },
-  topicChipActive: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
+  mcqTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
   },
-  topicChipText: {
+  mcqCounter: {
     fontSize: 12,
-    fontWeight: '600',
-    color: COLORS.textMuted,
-  },
-  topicChipTextActive: {
-    color: COLORS.white,
-    fontWeight: '700',
-  },
-
-  // MCQ Styles
-  quizCard: {
-    backgroundColor: COLORS.white,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.l,
-    ...SHADOWS.card,
-  },
-  quizCardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: SPACING.m,
-  },
-  quizNumBadge: {
-    backgroundColor: '#EEF2FF',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: RADIUS.sm,
-  },
-  quizNumText: {
-    fontSize: 11,
     fontWeight: '800',
     color: COLORS.primary,
   },
-  quizTopicTag: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: COLORS.textMuted,
-  },
-  quizQuestionLocal: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: COLORS.text,
-    lineHeight: 24,
-    marginBottom: SPACING.s,
-  },
-  quizQuestionEnRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#F8FAFC',
-    padding: SPACING.s,
-    borderRadius: RADIUS.sm,
-    marginBottom: SPACING.l,
-  },
-  quizQuestionEn: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: COLORS.primary,
-    flex: 1,
-  },
-  optionsContainer: {
-    gap: SPACING.s,
-    marginBottom: SPACING.m,
-  },
-  optButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#F9FAFB',
-    borderWidth: 1.5,
-    borderColor: COLORS.border,
-    paddingVertical: 14,
-    paddingHorizontal: SPACING.m,
-    borderRadius: RADIUS.md,
-  },
-  optButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: COLORS.text,
-  },
-  optSelected: {
-    backgroundColor: '#EEF2FF',
-    borderColor: COLORS.primary,
-  },
-  optTextSelected: {
-    color: COLORS.primary,
-    fontWeight: '800',
-  },
-  optCorrect: {
-    backgroundColor: '#DCFCE7',
-    borderColor: COLORS.secondary,
-  },
-  optTextCorrect: {
-    color: '#15803D',
-    fontWeight: '800',
-  },
-  optWrong: {
-    backgroundColor: '#FEE2E2',
-    borderColor: '#EF4444',
-  },
-  optTextWrong: {
-    color: '#B91C1C',
-    fontWeight: '700',
-  },
-  explanationBox: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: RADIUS.md,
-    padding: SPACING.m,
-    borderLeftWidth: 4,
-    borderLeftColor: COLORS.secondary,
-    marginTop: SPACING.s,
-  },
-  explanationTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: COLORS.text,
-    marginBottom: 4,
-  },
-  explanationBody: {
-    fontSize: 13,
-    color: COLORS.textMuted,
-    lineHeight: 18,
-    marginBottom: SPACING.m,
-  },
-  nextQuizBtn: {
-    backgroundColor: COLORS.secondary,
-    paddingVertical: 12,
-    borderRadius: RADIUS.md,
-    alignItems: 'center',
-  },
-  nextQuizBtnText: {
-    color: COLORS.white,
-    fontSize: 14,
-    fontWeight: '800',
-  },
-
-  // Matching Pairs
-  matchingBoardCard: {
-    backgroundColor: COLORS.white,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.l,
-    ...SHADOWS.card,
-  },
-  matchingHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: SPACING.l,
-  },
-  matchingTitle: {
+  mcqQuestionText: {
     fontSize: 16,
     fontWeight: '800',
-    color: COLORS.text,
+    color: COLORS.textMain,
+    lineHeight: 22,
+    marginBottom: 8,
   },
-  matchingProgress: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: COLORS.primary,
+  mcqSentenceHint: {
+    fontSize: 13,
+    color: COLORS.secondary,
+    fontStyle: 'italic',
+    marginBottom: 12,
   },
-  columnsContainer: {
+  mcqOptionsCol: {
+    gap: 8,
+    marginVertical: 8,
+  },
+  mcqOptBtn: {
     flexDirection: 'row',
-    gap: SPACING.m,
-  },
-  matchingCol: {
-    flex: 1,
-    gap: SPACING.s,
-  },
-  colHeader: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: COLORS.textMuted,
-    textAlign: 'center',
-    marginBottom: 4,
-  },
-  matchItem: {
-    backgroundColor: '#F9FAFB',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: RADIUS.md,
+    backgroundColor: '#F8FAFC',
     borderWidth: 1.5,
     borderColor: COLORS.border,
-    paddingVertical: 12,
-    paddingHorizontal: SPACING.s,
-    borderRadius: RADIUS.md,
+  },
+  mcqOptSelected: {
+    backgroundColor: COLORS.secondaryLight,
+    borderColor: COLORS.secondary,
+  },
+  mcqOptCorrect: {
+    backgroundColor: COLORS.accentGreenLight,
+    borderColor: COLORS.accentGreen,
+  },
+  mcqOptWrong: {
+    backgroundColor: COLORS.accentRedLight,
+    borderColor: COLORS.accentRed,
+  },
+  mcqOptCircle: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: COLORS.border,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 52,
+  },
+  mcqOptCircleText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: COLORS.textMain,
+  },
+  mcqOptText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.textMain,
+    flex: 1,
+  },
+  mcqFeedbackBox: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+    gap: 6,
+  },
+  mcqFeedbackTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: COLORS.textMain,
+  },
+  mcqExplanationText: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+  },
+  mcqNextBtn: {
+    backgroundColor: COLORS.primary,
+    paddingVertical: 12,
+    borderRadius: RADIUS.md,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  mcqNextBtnText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: COLORS.white,
+  },
+  matchingCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    ...SHADOWS.card,
+  },
+  matchingHint: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+    marginBottom: 12,
+  },
+  matchColsRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  matchCol: {
+    flex: 1,
+    gap: 8,
+  },
+  matchColHeading: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: COLORS.textMuted,
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  matchItemBtn: {
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: RADIUS.md,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 48,
+  },
+  matchItemBtnSelected: {
+    backgroundColor: COLORS.secondaryLight,
+    borderColor: COLORS.secondary,
+  },
+  matchItemBtnMatched: {
+    backgroundColor: COLORS.accentGreenLight,
+    borderColor: COLORS.accentGreen,
+    opacity: 0.6,
   },
   matchItemText: {
     fontSize: 13,
     fontWeight: '700',
-    color: COLORS.text,
+    color: COLORS.textMain,
     textAlign: 'center',
-  },
-  matchItemSelected: {
-    backgroundColor: '#EEF2FF',
-    borderColor: COLORS.primary,
-  },
-  matchItemTextSelected: {
-    color: COLORS.primary,
-    fontWeight: '800',
-  },
-  matchItemMatched: {
-    backgroundColor: '#DCFCE7',
-    borderColor: COLORS.secondary,
-    opacity: 0.6,
   },
   matchItemTextMatched: {
-    color: '#15803D',
+    color: COLORS.accentGreenDark,
     textDecorationLine: 'line-through',
   },
-  allMatchedBox: {
-    marginTop: SPACING.xl,
-    backgroundColor: '#F0FDF4',
-    borderRadius: RADIUS.md,
-    padding: SPACING.l,
+  matchWinBox: {
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#BBF7D0',
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+    gap: 8,
   },
-  allMatchedTitle: {
-    fontSize: 15,
+  matchWinTitle: {
+    fontSize: 14,
     fontWeight: '800',
-    color: '#15803D',
-    marginVertical: SPACING.s,
+    color: COLORS.accentGreenDark,
     textAlign: 'center',
   },
-  nextSetBtn: {
+  matchNextBtn: {
     backgroundColor: COLORS.secondary,
+    paddingHorizontal: 20,
     paddingVertical: 10,
-    paddingHorizontal: SPACING.l,
-    borderRadius: RADIUS.md,
+    borderRadius: RADIUS.full,
   },
-  nextSetBtnText: {
-    color: COLORS.white,
+  matchNextBtnText: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '800',
+    color: COLORS.white,
   },
-
-  // Sentence Builder
   builderCard: {
     backgroundColor: COLORS.white,
     borderRadius: RADIUS.lg,
-    padding: SPACING.l,
+    padding: SPACING.lg,
+    borderWidth: 1,
+    borderColor: COLORS.border,
     ...SHADOWS.card,
   },
-  builderHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: SPACING.m,
-  },
-  targetSentencePrompt: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: COLORS.text,
+  builderTargetMeaning: {
+    fontSize: 17,
+    fontWeight: '900',
+    color: COLORS.textMain,
     marginBottom: 4,
   },
-  builderSubHint: {
+  builderHint: {
     fontSize: 12,
     color: COLORS.textMuted,
-    marginBottom: SPACING.m,
+    marginBottom: 12,
   },
-  assembledDropZone: {
-    minHeight: 80,
+  assembledBox: {
+    minHeight: 70,
     backgroundColor: '#F8FAFC',
     borderRadius: RADIUS.md,
-    borderWidth: 2,
-    borderColor: '#E2E8F0',
+    padding: 10,
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
     borderStyle: 'dashed',
-    padding: SPACING.m,
     justifyContent: 'center',
-    marginBottom: SPACING.l,
+    marginBottom: 12,
   },
-  dropZonePlaceholder: {
-    fontSize: 13,
-    color: COLORS.textMuted,
+  assembledPlaceholder: {
+    fontSize: 12,
+    color: COLORS.textLight,
     textAlign: 'center',
-    fontStyle: 'italic',
   },
-  wordChipsRow: {
+  tokensRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  assembledToken: {
+    backgroundColor: COLORS.secondary,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: RADIUS.sm,
+  },
+  assembledTokenText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: COLORS.white,
+  },
+  availableBox: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
+    marginBottom: 16,
   },
-  assembledChip: {
-    backgroundColor: COLORS.primary,
+  availableToken: {
+    backgroundColor: COLORS.white,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: RADIUS.md,
+    borderRadius: RADIUS.sm,
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+    ...SHADOWS.sm,
   },
-  assembledChipText: {
-    color: COLORS.white,
-    fontSize: 14,
+  availableTokenText: {
+    fontSize: 13,
     fontWeight: '700',
-  },
-  availableHeading: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: COLORS.textMuted,
-    marginBottom: SPACING.s,
-  },
-  availableChipsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: SPACING.l,
-  },
-  availableChip: {
-    backgroundColor: '#EEF2FF',
-    borderWidth: 1,
-    borderColor: COLORS.primary,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: RADIUS.md,
-  },
-  availableChipText: {
-    color: COLORS.primary,
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  checkSentenceBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: COLORS.primary,
-    paddingVertical: 14,
-    borderRadius: RADIUS.md,
-    gap: 6,
-    ...SHADOWS.button,
-  },
-  checkSentenceBtnText: {
-    color: COLORS.white,
-    fontSize: 15,
-    fontWeight: '700',
+    color: COLORS.textMain,
   },
   builderSuccessBox: {
-    backgroundColor: '#F0FDF4',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: COLORS.accentGreenLight,
+    padding: 10,
     borderRadius: RADIUS.md,
-    padding: SPACING.m,
-    borderWidth: 1,
-    borderColor: '#BBF7D0',
+    marginBottom: 12,
   },
   builderSuccessText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '800',
-    color: '#15803D',
-  },
-  audioRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: SPACING.m,
-  },
-  fullSentenceEn: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: COLORS.text,
+    color: COLORS.accentGreenDark,
     flex: 1,
   },
   builderWrongBox: {
-    backgroundColor: '#FEE2E2',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: COLORS.accentRedLight,
+    padding: 10,
     borderRadius: RADIUS.md,
-    padding: SPACING.m,
-    marginBottom: SPACING.m,
+    marginBottom: 12,
   },
   builderWrongText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700',
-    color: '#B91C1C',
+    color: COLORS.accentRedDark,
+    flex: 1,
+  },
+  builderActionsRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  builderResetBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: RADIUS.md,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  builderCheckBtn: {
+    flex: 1,
+    backgroundColor: COLORS.primary,
+    borderRadius: RADIUS.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  builderCheckBtnDisabled: {
+    opacity: 0.4,
+  },
+  builderCheckBtnText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: COLORS.white,
+  },
+  builderNextBtn: {
+    flex: 1,
+    backgroundColor: COLORS.accentGreen,
+    borderRadius: RADIUS.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  builderNextBtnText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: COLORS.white,
   },
 });
