@@ -111,7 +111,32 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  const t = translations[language] || translations.mr;
+  const [isLoading, setIsLoading] = useState(false);
+
+  const refreshTodaySnapshot = async () => {
+    setIsLoading(true);
+    setTimeout(() => {
+      setIsLoading(false);
+    }, 600);
+  };
+
+  const currentDict = translations[language] || translations.mr || {};
+  const getTranslation = (key) => {
+    if (!key) return '';
+    return currentDict[key] || translations.mr?.[key] || translations.hi?.[key] || translations.en?.[key] || key;
+  };
+
+  const t = new Proxy(getTranslation, {
+    get(target, prop) {
+      if (typeof prop === 'string' && prop in currentDict) {
+        return currentDict[prop];
+      }
+      if (typeof prop === 'string') {
+        return target(prop);
+      }
+      return target[prop];
+    }
+  });
 
   return (
     <AppContext.Provider
@@ -119,6 +144,7 @@ export const AppProvider = ({ children }) => {
         language,
         changeLanguage,
         isOnboardingDone,
+        isOnboarded: Boolean(isOnboardingDone),
         completeOnboarding,
         resetOnboarding,
         userLevel,
@@ -126,11 +152,15 @@ export const AppProvider = ({ children }) => {
         streak,
         incrementStreak,
         todayMinutes,
+        setTodayMinutes,
         soundSpeed,
         setSoundSpeed,
+        speechRate: soundSpeed,
         todaySnapshot,
+        refreshTodaySnapshot,
         completedTasks,
         markTaskDone,
+        isLoading,
         t
       }}
     >
@@ -140,3 +170,4 @@ export const AppProvider = ({ children }) => {
 };
 
 export const useApp = () => useContext(AppContext);
+
