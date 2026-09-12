@@ -1,0 +1,30 @@
+{
+  "expo": {
+    "name": "English शिका (Marathi to English)",
+    "slug": "marathi-english-learning",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#4F46E5"
+    },
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.englishshika.app",
+      "versionCode": 1,
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.INTERNET",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ]
+    },
+    "extra": {
+      "eas": {
+        "projectId": "9d56e533-40dc-4ad6-92a6-2f415d5da517"
+      }
+    }
+  }
+}

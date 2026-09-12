@@ -1,0 +1,26 @@
+{
+  "name": "marathi-english-learning-app",
+  "version": "1.0.0",
+  "description": "Marathi to English Learning App with SRS, TTS, Speaking Practice, and Express + MySQL Backend",
+  "scripts": {
+    "server": "node server/index.js",
+    "client": "npm run dev --prefix client",
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "install-all": "npm install && npm install --prefix server && npm install --prefix client"
+  },
+  "keywords": [
+    "marathi",
+    "english-learning",
+    "react",
+    "express",
+    "mysql",
+    "srs",
+    "spaced-repetition",
+    "speech-recognition"
+  ],
+  "author": "Marathi-English Learning Team",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
