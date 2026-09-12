@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -18,6 +18,11 @@ import {
   ChevronRight,
   Flame,
   Volume2,
+  Target,
+  Clock,
+  Lock,
+  ArrowRight,
+  TrendingUp,
 } from 'lucide-react-native';
 import { useApp } from '../context/AppContext';
 import { COLORS, SPACING, RADIUS, SHADOWS } from '../constants/theme';
@@ -27,11 +32,12 @@ import AudioButton from '../components/AudioButton';
 export default function HomeScreen() {
   const navigation = useNavigation();
   const { t, language, userLevel, streak, todaySnapshot, refreshTodaySnapshot, isLoading } = useApp();
+  const [expandedLevel, setExpandedLevel] = useState(1);
 
   const getGreeting = () => {
     const hour = new Date().getHours();
     if (hour < 12) {
-      return language === 'mr' ? 'शुभ प्रभात! 🌅' : language === 'hi' ? 'शुभ प्रभात! 🌅' : 'Good Morning! 🌅';
+      return language === 'mr' ? 'शुभ सकाळ! 🌅' : language === 'hi' ? 'सुप्रभात! 🌅' : 'Good Morning! 🌅';
     }
     if (hour < 17) {
       return language === 'mr' ? 'शुभ दुपार! ☀️' : language === 'hi' ? 'शुभ दोपहर! ☀️' : 'Good Afternoon! ☀️';
@@ -39,18 +45,53 @@ export default function HomeScreen() {
     return language === 'mr' ? 'शुभ संध्याकाळ! 🌙' : language === 'hi' ? 'शुभ संध्या! 🌙' : 'Good Evening! 🌙';
   };
 
-  const getLevelLabel = () => {
-    switch (userLevel) {
-      case 'beginner':
-        return language === 'mr' ? 'नवशिक्या (Beginner)' : language === 'hi' ? 'शुरुआती (Beginner)' : 'Beginner (A1)';
-      case 'intermediate':
-        return language === 'mr' ? 'मध्यम (Intermediate)' : language === 'hi' ? 'मध्यम (Intermediate)' : 'Intermediate (B1)';
-      case 'advanced':
-        return language === 'mr' ? 'प्रगत (Advanced)' : language === 'hi' ? 'उन्नत (Advanced)' : 'Advanced (C1)';
-      default:
-        return 'Beginner';
-    }
-  };
+  const levels = [
+    {
+      id: 1,
+      name: language === 'mr' ? 'लेव्हल १: नवशिक्या (Beginner)' : 'Level 1: Beginner',
+      desc: language === 'mr' ? 'इंग्रजी मुळाक्षरे, मूलभूत शब्द आणि सोपे नियम' : 'Alphabet, Phonics & Everyday Basic Words',
+      completed: true,
+      tasks: 4,
+      totalTasks: 4,
+      color: COLORS.primary,
+    },
+    {
+      id: 2,
+      name: language === 'mr' ? 'लेव्हल २: क्रियापदे (Verbs & Tenses)' : 'Level 2: Verbs & Tenses',
+      desc: language === 'mr' ? '३००+ महत्त्वाची क्रियापदे (V1, V2, V3) व काळ' : 'Essential Verbs & Simple Tense Rules',
+      completed: false,
+      tasks: 3,
+      totalTasks: 5,
+      color: COLORS.secondary,
+    },
+    {
+      id: 3,
+      name: language === 'mr' ? 'लेव्हल ३: वाक्य रचना (Sentence Patterns)' : 'Level 3: Sentence Patterns',
+      desc: language === 'mr' ? 'I want, I have, Can you वाक्यरचना सराव' : 'Daily sentence templates & speaking structures',
+      completed: false,
+      tasks: 1,
+      totalTasks: 6,
+      color: COLORS.accentGreen,
+    },
+    {
+      id: 4,
+      name: language === 'mr' ? 'लेव्हल ४: दैनंदिन संभाषण (Daily Dialogues)' : 'Level 4: Dialogues',
+      desc: language === 'mr' ? 'दुकान, हॉटेल, प्रवास आणि ऑफिसमधील इंग्रजी' : 'Real life conversations & situations',
+      completed: false,
+      tasks: 0,
+      totalTasks: 5,
+      color: COLORS.accentPurple,
+    },
+    {
+      id: 5,
+      name: language === 'mr' ? 'लेव्हल ५: अस्खलित इंग्रजी (Fluency Master)' : 'Level 5: Fluency',
+      desc: language === 'mr' ? 'आत्मविश्वासाने आणि अडखळता इंग्रजी बोला' : 'Spontaneous English & AI debate practice',
+      completed: false,
+      tasks: 0,
+      totalTasks: 6,
+      color: COLORS.accentAmber,
+    },
+  ];
 
   return (
     <View style={styles.container}>
@@ -60,194 +101,289 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
-            refreshing={isLoading}
+            refreshing={Boolean(isLoading)}
             onRefresh={refreshTodaySnapshot}
             colors={[COLORS.primary]}
           />
         }
       >
-        {/* Welcome Greeting Banner */}
-        <View style={styles.greetingCard}>
-          <View style={styles.greetingHeader}>
-            <View>
-              <Text style={styles.greetingSub}>{getGreeting()}</Text>
-              <Text style={styles.greetingTitle}>
-                {language === 'mr' ? 'आजचे इंग्रजी शिकूया!' : language === 'hi' ? 'आज का अंग्रेजी सीखें!' : "Let's Learn English Today!"}
+        {/* Hero Welcome Banner */}
+        <View style={styles.heroCard}>
+          <View style={styles.heroBadgeRow}>
+            <View style={styles.dailyMissionPill}>
+              <Target size={13} color={COLORS.primaryDark} />
+              <Text style={styles.dailyMissionText}>
+                {language === 'mr' ? 'आजचे ध्येय' : language === 'hi' ? 'आज का लक्ष्य' : 'Daily Mission'}
               </Text>
             </View>
-            <View style={styles.levelBadge}>
-              <Award size={14} color={COLORS.primary} />
-              <Text style={styles.levelBadgeText}>{getLevelLabel()}</Text>
+            <View style={styles.streakTag}>
+              <Flame size={14} color={COLORS.primary} fill={COLORS.primary} />
+              <Text style={styles.streakTagText}>{streak} {language === 'mr' ? 'दिवस सातत्य' : 'Days Streak'}</Text>
             </View>
           </View>
 
-          {/* Streak Bar */}
-          <View style={styles.streakStrip}>
-            <Flame size={20} color={COLORS.streak} />
-            <Text style={styles.streakText}>
-              <Text style={styles.streakBold}>{streak} </Text>
-              {language === 'mr'
-                ? 'दिवसांचा सराव सातत्य! रोज शिका आणि इंग्रजी सुधारा.'
-                : language === 'hi'
-                ? 'दिनों की लकीर! रोज़ाना अभ्यास करें।'
-                : 'Day streak! Keep learning every day.'}
-            </Text>
-          </View>
-
-          {/* Primary Action Button */}
-          <TouchableOpacity
-            style={styles.primaryCta}
-            activeOpacity={0.88}
-            onPress={() => navigation.navigate('Daily')}
-          >
-            <Sparkles size={20} color={COLORS.white} />
-            <Text style={styles.primaryCtaText}>
-              {language === 'mr' ? 'आजचा सराव सुरू करा' : language === 'hi' ? 'आज का अभ्यास शुरू करें' : "Start Today's Lesson"}
-            </Text>
-            <ChevronRight size={18} color={COLORS.white} />
-          </TouchableOpacity>
-        </View>
-
-        {/* Quick Module Navigation Grid */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>
-            {language === 'mr' ? 'अभ्यास विभाग' : language === 'hi' ? 'अभ्यास अनुभाग' : 'Learning Modules'}
+          <Text style={styles.heroGreetingText}>{getGreeting()}</Text>
+          <Text style={styles.heroSubtext}>
+            {language === 'mr'
+              ? 'दररोज ५ मिनिटे सराव करा आणि सोप्या पद्धतीने अस्खलित इंग्रजी बोलायला शिका.'
+              : language === 'hi'
+              ? 'रोज 5 मिनट अभ्यास करें और आसान तरीके से फर्राटेदार अंग्रेजी सीखें।'
+              : 'Practice 5 minutes daily and master fluent English speaking step-by-step.'}
           </Text>
-        </View>
 
-        <View style={styles.grid}>
-          <TouchableOpacity
-            style={[styles.gridCard, { borderLeftColor: COLORS.primary }]}
-            onPress={() => navigation.navigate('Learn')}
-            activeOpacity={0.7}
-          >
-            <View style={[styles.gridIconWrap, { backgroundColor: '#EEF2FF' }]}>
-              <BookOpen size={24} color={COLORS.primary} />
-            </View>
-            <Text style={styles.gridTitle}>{t('learnTab')}</Text>
-            <Text style={styles.gridSubtitle}>
-              {language === 'mr' ? 'व्याकरण व धडे' : language === 'hi' ? 'व्याकरण और पाठ' : 'Grammar & Lessons'}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.gridCard, { borderLeftColor: COLORS.secondary }]}
-            onPress={() => navigation.navigate('Vocab')}
-            activeOpacity={0.7}
-          >
-            <View style={[styles.gridIconWrap, { backgroundColor: '#ECFDF5' }]}>
-              <Sparkles size={24} color={COLORS.secondary} />
-            </View>
-            <Text style={styles.gridTitle}>{t('vocabTab')}</Text>
-            <Text style={styles.gridSubtitle}>
-              {language === 'mr' ? 'शब्दसंग्रह आणि V1-V3' : language === 'hi' ? 'शब्दावली और रूप' : 'Words & Verbs'}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.gridCard, { borderLeftColor: COLORS.accent }]}
-            onPress={() => navigation.navigate('Practice')}
-            activeOpacity={0.7}
-          >
-            <View style={[styles.gridIconWrap, { backgroundColor: '#FFFBEB' }]}>
-              <Award size={24} color={COLORS.accent} />
-            </View>
-            <Text style={styles.gridTitle}>{t('practiceTab')}</Text>
-            <Text style={styles.gridSubtitle}>
-              {language === 'mr' ? 'क्विझ व वाक्य रचना' : language === 'hi' ? 'क्विज़ और वाक्य' : 'Quizzes & Exercises'}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.gridCard, { borderLeftColor: COLORS.speak }]}
-            onPress={() => navigation.navigate('Speaking')}
-            activeOpacity={0.7}
-          >
-            <View style={[styles.gridIconWrap, { backgroundColor: '#FDF2F8' }]}>
-              <Mic size={24} color={COLORS.speak} />
-            </View>
-            <Text style={styles.gridTitle}>{t('speakTab')}</Text>
-            <Text style={styles.gridSubtitle}>
-              {language === 'mr' ? 'AI संभाषण व उच्चार' : language === 'hi' ? 'AI बातचीत' : 'AI Speaking Practice'}
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Today's 5 Vocabulary Snapshot */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>
-            {language === 'mr' ? 'आजचे ५ खास शब्द' : language === 'hi' ? 'आज के ५ शब्द' : "Today's 5 Words"}
-          </Text>
-          <TouchableOpacity onPress={() => navigation.navigate('Vocab')}>
-            <Text style={styles.sectionLink}>
-              {language === 'mr' ? 'सर्व पहा' : language === 'hi' ? 'सभी देखें' : 'View All'} →
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.wordsContainer}>
-          {todaySnapshot.words.map((item, idx) => (
-            <View key={idx} style={styles.wordCard}>
-              <View style={styles.wordLeft}>
-                <View style={styles.wordNumBadge}>
-                  <Text style={styles.wordNumText}>{idx + 1}</Text>
-                </View>
-                <View>
-                  <Text style={styles.wordEn}>{item.word}</Text>
-                  <Text style={styles.wordMeaning}>
-                    {language === 'mr' ? item.meaningMr : language === 'hi' ? item.meaningHi : item.meaningMr}
-                  </Text>
-                </View>
-              </View>
-              <AudioButton text={item.word} size={36} />
-            </View>
-          ))}
-        </View>
-
-        {/* Today's Daily Sentences */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>
-            {language === 'mr' ? 'दैनंदिन वापरातील वाक्ये' : language === 'hi' ? 'दैनिक वाक्य' : 'Daily Useful Sentences'}
-          </Text>
-        </View>
-
-        <View style={styles.sentencesContainer}>
-          {todaySnapshot.sentences.map((sent, idx) => (
-            <View key={idx} style={styles.sentenceCard}>
-              <View style={styles.sentenceRow}>
-                <Text style={styles.sentenceEn}>{sent.en}</Text>
-                <AudioButton text={sent.en} size={32} />
-              </View>
-              <Text style={styles.sentenceNative}>
-                {language === 'mr' ? sent.mr : language === 'hi' ? sent.hi : sent.mr}
-              </Text>
-            </View>
-          ))}
-        </View>
-
-        {/* Quick Quiz Card preview */}
-        {todaySnapshot.quiz && (
-          <View style={styles.quizTeaserCard}>
-            <View style={styles.quizTeaserHeader}>
-              <CheckCircle2 size={20} color={COLORS.secondary} />
-              <Text style={styles.quizTeaserTitle}>
-                {language === 'mr' ? 'आजचा झटपट सराव प्रश्न' : language === 'hi' ? 'आज का त्वरित प्रश्न' : "Today's Quick Question"}
-              </Text>
-            </View>
-            <Text style={styles.quizQuestion}>{todaySnapshot.quiz.question}</Text>
+          {/* Action Button Row */}
+          <View style={styles.heroActionsRow}>
             <TouchableOpacity
-              style={styles.quizBtn}
-              onPress={() => navigation.navigate('Practice')}
-              activeOpacity={0.8}
+              style={styles.heroPrimaryBtn}
+              activeOpacity={0.88}
+              onPress={() => navigation.navigate('Daily')}
             >
-              <Text style={styles.quizBtnText}>
-                {language === 'mr' ? 'सराव सोडवा (+10 गुण)' : language === 'hi' ? 'हल करें (+10 अंक)' : 'Solve Quiz (+10 XP)'}
+              <Text style={styles.heroPrimaryBtnText}>
+                {language === 'mr' ? 'आजचा सराव सुरू करा' : 'Start Today\'s Lesson'}
+              </Text>
+              <ArrowRight size={18} color={COLORS.white} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.heroSecondaryBtn}
+              activeOpacity={0.88}
+              onPress={() => navigation.navigate('Speaking')}
+            >
+              <Mic size={17} color={COLORS.secondary} />
+              <Text style={styles.heroSecondaryBtnText}>
+                {language === 'mr' ? 'Speaking AI' : 'Speaking'}
               </Text>
             </TouchableOpacity>
           </View>
-        )}
+        </View>
 
-        <View style={{ height: 30 }} />
+        {/* 4 Stat Highlights in 2x2 Grid */}
+        <View style={styles.statsGrid}>
+          {/* Words Stat */}
+          <View style={[styles.statCard, { borderLeftColor: COLORS.primary }]}>
+            <View style={styles.statTopRow}>
+              <View style={[styles.statIconBadge, { backgroundColor: COLORS.primaryLight }]}>
+                <BookOpen size={16} color={COLORS.primary} />
+              </View>
+              <Text style={styles.statValue}>45</Text>
+            </View>
+            <Text style={styles.statLabel}>{language === 'mr' ? 'एकूण शब्द (Words)' : 'Total Words'}</Text>
+            <View style={styles.statProgressBarBg}>
+              <View style={[styles.statProgressBarFill, { width: '45%', backgroundColor: COLORS.primary }]} />
+            </View>
+            <Text style={styles.statSubtext}>{language === 'mr' ? 'ध्येय: ५०० शब्द' : 'Goal: 500 Words'}</Text>
+          </View>
+
+          {/* Speaking Stat */}
+          <View style={[styles.statCard, { borderLeftColor: COLORS.secondary }]}>
+            <View style={styles.statTopRow}>
+              <View style={[styles.statIconBadge, { backgroundColor: COLORS.secondaryLight }]}>
+                <Mic size={16} color={COLORS.secondary} />
+              </View>
+              <Text style={styles.statValue}>12</Text>
+            </View>
+            <Text style={styles.statLabel}>{language === 'mr' ? 'संभाषणे (Speaking)' : 'Speaking'}</Text>
+            <View style={styles.statProgressBarBg}>
+              <View style={[styles.statProgressBarFill, { width: '40%', backgroundColor: COLORS.secondary }]} />
+            </View>
+            <Text style={styles.statSubtext}>{language === 'mr' ? 'ध्येय: ३० संभाषणे' : 'Goal: 30 Sessions'}</Text>
+          </View>
+
+          {/* Accuracy Stat */}
+          <View style={[styles.statCard, { borderLeftColor: COLORS.accentGreen }]}>
+            <View style={styles.statTopRow}>
+              <View style={[styles.statIconBadge, { backgroundColor: COLORS.accentGreenLight }]}>
+                <Award size={16} color={COLORS.accentGreen} />
+              </View>
+              <Text style={styles.statValue}>88%</Text>
+            </View>
+            <Text style={styles.statLabel}>{language === 'mr' ? 'अचूकता (Accuracy)' : 'Accuracy'}</Text>
+            <View style={styles.statProgressBarBg}>
+              <View style={[styles.statProgressBarFill, { width: '88%', backgroundColor: COLORS.accentGreen }]} />
+            </View>
+            <Text style={styles.statSubtext}>{language === 'mr' ? 'क्विझ अचूकता' : 'Quiz Accuracy'}</Text>
+          </View>
+
+          {/* Lessons Stat */}
+          <View style={[styles.statCard, { borderLeftColor: COLORS.accentPurple }]}>
+            <View style={styles.statTopRow}>
+              <View style={[styles.statIconBadge, { backgroundColor: COLORS.accentPurpleLight }]}>
+                <Target size={16} color={COLORS.accentPurple} />
+              </View>
+              <Text style={styles.statValue}>5</Text>
+            </View>
+            <Text style={styles.statLabel}>{language === 'mr' ? 'पूर्ण धडे (Lessons)' : 'Lessons'}</Text>
+            <View style={styles.statProgressBarBg}>
+              <View style={[styles.statProgressBarFill, { width: '25%', backgroundColor: COLORS.accentPurple }]} />
+            </View>
+            <Text style={styles.statSubtext}>{language === 'mr' ? 'ध्येय: ५० धडे' : 'Goal: 50 Lessons'}</Text>
+          </View>
+        </View>
+
+        {/* Quick Modules Section */}
+        <View style={styles.sectionHeaderRow}>
+          <Text style={styles.sectionTitle}>
+            {language === 'mr' ? 'अभ्यास विभाग (Learning Modules)' : 'Learning Modules'}
+          </Text>
+        </View>
+
+        <View style={styles.modulesGrid}>
+          <TouchableOpacity
+            style={[styles.moduleCard, { borderLeftColor: COLORS.primary }]}
+            onPress={() => navigation.navigate('Learn')}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.moduleIconBadge, { backgroundColor: COLORS.primaryLight }]}>
+              <BookOpen size={20} color={COLORS.primary} />
+            </View>
+            <Text style={styles.moduleTitle}>{language === 'mr' ? 'धडे व व्याकरण' : 'Lessons'}</Text>
+            <Text style={styles.moduleSub}>{language === 'mr' ? 'स्टेप बाय स्टेप शिका' : 'Step-by-step'}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.moduleCard, { borderLeftColor: COLORS.secondary }]}
+            onPress={() => navigation.navigate('Vocab')}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.moduleIconBadge, { backgroundColor: COLORS.secondaryLight }]}>
+              <Sparkles size={20} color={COLORS.secondary} />
+            </View>
+            <Text style={styles.moduleTitle}>{language === 'mr' ? 'शब्दसंग्रह (Vocab)' : 'Vocabulary'}</Text>
+            <Text style={styles.moduleSub}>{language === 'mr' ? '५००+ रोजचे शब्द' : '500+ Daily Words'}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.moduleCard, { borderLeftColor: COLORS.accentGreen }]}
+            onPress={() => navigation.navigate('Practice')}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.moduleIconBadge, { backgroundColor: COLORS.accentGreenLight }]}>
+              <Award size={20} color={COLORS.accentGreen} />
+            </View>
+            <Text style={styles.moduleTitle}>{language === 'mr' ? 'सराव क्विझ' : 'Quiz & Practice'}</Text>
+            <Text style={styles.moduleSub}>{language === 'mr' ? 'जोड्या व प्रश्न' : 'MCQ & Match'}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.moduleCard, { borderLeftColor: COLORS.accentAmber }]}
+            onPress={() => navigation.navigate('Speaking')}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.moduleIconBadge, { backgroundColor: COLORS.accentAmberLight }]}>
+              <Mic size={20} color={COLORS.accentAmberDark} />
+            </View>
+            <Text style={styles.moduleTitle}>{language === 'mr' ? 'थेट संभाषण' : 'Speaking AI'}</Text>
+            <Text style={styles.moduleSub}>{language === 'mr' ? 'AI सोबत बोला' : 'Voice AI Chat'}</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Today's Learning Snapshot */}
+        <View style={styles.sectionHeaderRow}>
+          <View>
+            <Text style={styles.sectionTitle}>
+              {language === 'mr' ? "आजचा अभ्यास (Today's Snapshot)" : "Today's Learning"}
+            </Text>
+            <Text style={styles.sectionSubtitle}>
+              {language === 'mr' ? 'आजचे निवडक शब्द ऐका व सराव करा' : 'Listen & practice today\'s curated words'}
+            </Text>
+          </View>
+          <TouchableOpacity onPress={() => navigation.navigate('Vocab')} activeOpacity={0.7}>
+            <Text style={styles.sectionLinkText}>{language === 'mr' ? 'सर्व शब्द →' : 'View All →'}</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.wordsList}>
+          {(todaySnapshot?.words || [
+            { id: 1, word: 'Water', marathi: 'पाणी', hindi: 'पानी', pronunciation: 'वॉटर', type: 'noun' },
+            { id: 2, word: 'Book', marathi: 'पुस्तक', hindi: 'किताब', pronunciation: 'बुक', type: 'noun' },
+            { id: 3, word: 'Speak', marathi: 'बोलणे', hindi: 'बोलना', pronunciation: 'स्पीक', type: 'verb' },
+          ]).slice(0, 3).map((item, idx) => (
+            <View key={item.id || idx} style={styles.wordItemCard}>
+              <View style={styles.wordNumCircle}>
+                <Text style={styles.wordNumText}>{idx + 1}</Text>
+              </View>
+              <View style={styles.wordInfoCol}>
+                <View style={styles.wordHeaderRow}>
+                  <Text style={styles.wordEnText}>{item.word}</Text>
+                  {item.type && (
+                    <View style={styles.wordTypePill}>
+                      <Text style={styles.wordTypePillText}>{item.type}</Text>
+                    </View>
+                  )}
+                </View>
+                <Text style={styles.wordMeaningText}>
+                  {language === 'mr' ? item.marathi : language === 'hi' ? item.hindi : item.marathi}
+                  {item.pronunciation ? ` • (${item.pronunciation})` : ''}
+                </Text>
+              </View>
+              <AudioButton text={item.word} size={38} />
+            </View>
+          ))}
+        </View>
+
+        {/* Learning Journey Roadmap */}
+        <View style={styles.sectionHeaderRow}>
+          <View>
+            <Text style={styles.sectionTitle}>🗺️ {language === 'mr' ? 'इंग्रजी शिकण्याचा मार्ग' : 'Your Learning Journey'}</Text>
+            <Text style={styles.sectionSubtitle}>
+              {language === 'mr' ? 'एक एक लेव्हल पूर्ण करून पुढील लेव्हल अनलॉक करा' : 'Complete levels to unlock next'}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.journeyList}>
+          {levels.map((lvl) => {
+            const isExpanded = expandedLevel === lvl.id;
+            return (
+              <TouchableOpacity
+                key={lvl.id}
+                style={[
+                  styles.journeyCard,
+                  { borderLeftColor: lvl.completed ? COLORS.accentGreen : lvl.color },
+                ]}
+                onPress={() => setExpandedLevel(isExpanded ? null : lvl.id)}
+                activeOpacity={0.8}
+              >
+                <View style={styles.journeyHeaderRow}>
+                  <View style={[styles.journeyLevelBadge, { backgroundColor: lvl.completed ? COLORS.accentGreenLight : `${lvl.color}20` }]}>
+                    {lvl.completed ? (
+                      <CheckCircle2 size={16} color={COLORS.accentGreen} />
+                    ) : (
+                      <Text style={[styles.journeyLevelBadgeText, { color: lvl.color }]}>L{lvl.id}</Text>
+                    )}
+                  </View>
+                  <View style={styles.journeyTitleCol}>
+                    <Text style={styles.journeyTitle}>{lvl.name}</Text>
+                    <Text style={styles.journeyDesc}>{lvl.desc}</Text>
+                  </View>
+                  <ChevronRight
+                    size={18}
+                    color={COLORS.textMuted}
+                    style={{ transform: [{ rotate: isExpanded ? '90deg' : '0deg' }] }}
+                  />
+                </View>
+
+                {/* Progress bar */}
+                <View style={styles.journeyProgressRow}>
+                  <View style={styles.journeyProgressBarBg}>
+                    <View
+                      style={[
+                        styles.journeyProgressBarFill,
+                        {
+                          width: `${(lvl.tasks / lvl.totalTasks) * 100}%`,
+                          backgroundColor: lvl.completed ? COLORS.accentGreen : lvl.color,
+                        },
+                      ]}
+                    />
+                  </View>
+                  <Text style={styles.journeyProgressText}>
+                    {lvl.tasks}/{lvl.totalTasks} {language === 'mr' ? 'भाग पूर्ण' : 'completed'}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
       </ScrollView>
     </View>
   );
@@ -256,241 +392,341 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: COLORS.bgMain,
   },
   scrollContent: {
-    padding: SPACING.m,
+    padding: SPACING.md,
+    paddingBottom: 120, // ample bottom padding so it never hides under bottom navigation
   },
-  greetingCard: {
+  heroCard: {
     backgroundColor: COLORS.white,
     borderRadius: RADIUS.lg,
-    padding: SPACING.l,
-    marginBottom: SPACING.l,
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
     ...SHADOWS.card,
   },
-  greetingHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: SPACING.m,
-  },
-  greetingSub: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: COLORS.primary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 2,
-  },
-  greetingTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: COLORS.text,
-  },
-  levelBadge: {
+  heroBadgeRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#EEF2FF',
-    paddingHorizontal: 8,
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  dailyMissionPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: COLORS.primaryLight,
+    paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: RADIUS.full,
-    gap: 4,
+    borderWidth: 1,
+    borderColor: COLORS.borderAmber,
   },
-  levelBadgeText: {
+  dailyMissionText: {
     fontSize: 11,
-    fontWeight: '700',
-    color: COLORS.primary,
+    fontWeight: '800',
+    color: COLORS.primaryDark,
   },
-  streakStrip: {
+  streakTag: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFF7ED',
-    borderRadius: RADIUS.md,
-    padding: SPACING.s,
-    marginBottom: SPACING.m,
-    gap: SPACING.xs,
+    gap: 4,
+    backgroundColor: COLORS.streakBg,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: RADIUS.full,
+    borderWidth: 1,
+    borderColor: COLORS.streakBorder,
   },
-  streakText: {
-    fontSize: 12,
-    color: '#C2410C',
-    flex: 1,
-  },
-  streakBold: {
+  streakTagText: {
+    fontSize: 11,
     fontWeight: '800',
-    fontSize: 14,
+    color: COLORS.primaryDark,
   },
-  primaryCta: {
+  heroGreetingText: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: COLORS.textMain,
+    marginBottom: 4,
+  },
+  heroSubtext: {
+    fontSize: 13,
+    color: COLORS.textMuted,
+    lineHeight: 18,
+    marginBottom: 14,
+  },
+  heroActionsRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  heroPrimaryBtn: {
+    flex: 1.2,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 6,
     backgroundColor: COLORS.primary,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
     borderRadius: RADIUS.md,
-    paddingVertical: 14,
-    paddingHorizontal: SPACING.l,
-    gap: SPACING.s,
-    ...SHADOWS.button,
+    ...SHADOWS.sm,
   },
-  primaryCtaText: {
-    color: COLORS.white,
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: SPACING.m,
-    marginTop: SPACING.s,
-  },
-  sectionTitle: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: COLORS.text,
-  },
-  sectionLink: {
+  heroPrimaryBtnText: {
     fontSize: 13,
-    fontWeight: '700',
-    color: COLORS.primary,
+    fontWeight: '800',
+    color: COLORS.white,
   },
-  grid: {
+  heroSecondaryBtn: {
+    flex: 0.8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: COLORS.secondaryLight,
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+    borderRadius: RADIUS.md,
+  },
+  heroSecondaryBtnText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: COLORS.secondary,
+  },
+  statsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    marginBottom: SPACING.l,
-    gap: SPACING.s,
+    gap: 10,
+    marginBottom: SPACING.md,
   },
-  gridCard: {
+  statCard: {
     width: '48%',
     backgroundColor: COLORS.white,
     borderRadius: RADIUS.md,
-    padding: SPACING.m,
+    padding: SPACING.md,
     borderLeftWidth: 4,
-    ...SHADOWS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    ...SHADOWS.sm,
   },
-  gridIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: RADIUS.md,
-    justifyContent: 'center',
+  statTopRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: SPACING.s,
+    justifyContent: 'space-between',
+    marginBottom: 4,
   },
-  gridTitle: {
-    fontSize: 15,
+  statIconBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: RADIUS.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statValue: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: COLORS.textMain,
+  },
+  statLabel: {
+    fontSize: 12,
     fontWeight: '700',
-    color: COLORS.text,
+    color: COLORS.textMain,
+    marginBottom: 6,
+  },
+  statProgressBarBg: {
+    height: 4,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 2,
+    overflow: 'hidden',
+    marginBottom: 4,
+  },
+  statProgressBarFill: {
+    height: '100%',
+    borderRadius: 2,
+  },
+  statSubtext: {
+    fontSize: 10,
+    color: COLORS.textMuted,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 8,
+    marginBottom: 10,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: COLORS.textMain,
+  },
+  sectionSubtitle: {
+    fontSize: 11,
+    color: COLORS.textMuted,
+    marginTop: 1,
+  },
+  sectionLinkText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: COLORS.primary,
+  },
+  modulesGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: 10,
+    marginBottom: SPACING.md,
+  },
+  moduleCard: {
+    width: '48%',
+    backgroundColor: COLORS.white,
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
+    borderLeftWidth: 4,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    ...SHADOWS.sm,
+  },
+  moduleIconBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: RADIUS.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  moduleTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: COLORS.textMain,
     marginBottom: 2,
   },
-  gridSubtitle: {
+  moduleSub: {
     fontSize: 11,
     color: COLORS.textMuted,
   },
-  wordsContainer: {
-    gap: SPACING.s,
-    marginBottom: SPACING.l,
+  wordsList: {
+    gap: 8,
+    marginBottom: SPACING.md,
   },
-  wordCard: {
+  wordItemCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     backgroundColor: COLORS.white,
     borderRadius: RADIUS.md,
-    padding: SPACING.m,
-    ...SHADOWS.card,
+    padding: SPACING.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    ...SHADOWS.sm,
+    gap: 10,
   },
-  wordLeft: {
-    flexDirection: 'row',
+  wordNumCircle: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: COLORS.secondaryLight,
     alignItems: 'center',
-    gap: SPACING.m,
-    flex: 1,
-  },
-  wordNumBadge: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#EEF2FF',
     justifyContent: 'center',
-    alignItems: 'center',
   },
   wordNumText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: COLORS.primary,
-  },
-  wordEn: {
-    fontSize: 16,
+    fontSize: 12,
     fontWeight: '800',
-    color: COLORS.text,
+    color: COLORS.secondary,
   },
-  wordMeaning: {
-    fontSize: 13,
-    color: COLORS.textMuted,
-    marginTop: 2,
-  },
-  sentencesContainer: {
-    gap: SPACING.s,
-    marginBottom: SPACING.l,
-  },
-  sentenceCard: {
-    backgroundColor: COLORS.white,
-    borderRadius: RADIUS.md,
-    padding: SPACING.m,
-    borderLeftWidth: 3,
-    borderLeftColor: COLORS.accent,
-    ...SHADOWS.card,
-  },
-  sentenceRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  sentenceEn: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: COLORS.text,
+  wordInfoCol: {
     flex: 1,
-    marginRight: 8,
   },
-  sentenceNative: {
-    fontSize: 13,
-    color: COLORS.textMuted,
-  },
-  quizTeaserCard: {
-    backgroundColor: '#F0FDF4',
-    borderWidth: 1,
-    borderColor: '#BBF7D0',
-    borderRadius: RADIUS.lg,
-    padding: SPACING.l,
-    ...SHADOWS.card,
-  },
-  quizTeaserHeader: {
+  wordHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginBottom: SPACING.s,
+    marginBottom: 2,
   },
-  quizTeaserTitle: {
-    fontSize: 13,
+  wordEnText: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: COLORS.textMain,
+  },
+  wordTypePill: {
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: RADIUS.full,
+  },
+  wordTypePillText: {
+    fontSize: 9,
     fontWeight: '700',
-    color: '#15803D',
+    color: COLORS.textMuted,
     textTransform: 'uppercase',
   },
-  quizQuestion: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: COLORS.text,
-    marginBottom: SPACING.m,
+  wordMeaningText: {
+    fontSize: 12,
+    color: COLORS.textMuted,
   },
-  quizBtn: {
-    backgroundColor: COLORS.secondary,
+  journeyList: {
+    gap: 10,
+    marginBottom: SPACING.md,
+  },
+  journeyCard: {
+    backgroundColor: COLORS.white,
     borderRadius: RADIUS.md,
-    paddingVertical: 10,
-    alignItems: 'center',
+    padding: SPACING.md,
+    borderLeftWidth: 4,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    ...SHADOWS.sm,
   },
-  quizBtnText: {
-    color: COLORS.white,
-    fontWeight: '700',
+  journeyHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 8,
+  },
+  journeyLevelBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: RADIUS.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  journeyLevelBadgeText: {
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  journeyTitleCol: {
+    flex: 1,
+  },
+  journeyTitle: {
     fontSize: 14,
+    fontWeight: '800',
+    color: COLORS.textMain,
+  },
+  journeyDesc: {
+    fontSize: 11,
+    color: COLORS.textMuted,
+    marginTop: 2,
+  },
+  journeyProgressRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  journeyProgressBarBg: {
+    flex: 1,
+    height: 5,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  journeyProgressBarFill: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  journeyProgressText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: COLORS.textMuted,
   },
 });

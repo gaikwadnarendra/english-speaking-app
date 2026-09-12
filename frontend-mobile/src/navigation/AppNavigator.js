@@ -42,13 +42,19 @@ function MainTabNavigator() {
           backgroundColor: COLORS.white,
           borderTopWidth: 1,
           borderTopColor: COLORS.border,
-          height: Platform.OS === 'ios' ? 88 : 64,
-          paddingBottom: Platform.OS === 'ios' ? 24 : 8,
+          height: Platform.OS === 'ios' ? 88 : 66,
+          paddingBottom: Platform.OS === 'ios' ? 26 : 10,
           paddingTop: 8,
+          elevation: 8,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: -2 },
+          shadowOpacity: 0.06,
+          shadowRadius: 6,
         },
         tabBarLabelStyle: {
           fontSize: 11,
-          fontWeight: '700',
+          fontWeight: '800',
+          marginTop: 2,
         },
       }}
     >
@@ -56,40 +62,50 @@ function MainTabNavigator() {
         name="Home"
         component={HomeScreen}
         options={{
-          tabBarLabel: t('homeTab'),
-          tabBarIcon: ({ color, size }) => <Home size={size || 22} color={color} />,
+          tabBarLabel: t('homeTab') || 'Home',
+          tabBarIcon: ({ color, size, focused }) => (
+            <Home size={focused ? 24 : 22} color={color} strokeWidth={focused ? 2.5 : 2} />
+          ),
         }}
       />
       <Tab.Screen
         name="Learn"
         component={LearnScreen}
         options={{
-          tabBarLabel: t('learnTab'),
-          tabBarIcon: ({ color, size }) => <BookOpen size={size || 22} color={color} />,
+          tabBarLabel: t('learnTab') || 'Learn',
+          tabBarIcon: ({ color, size, focused }) => (
+            <BookOpen size={focused ? 24 : 22} color={color} strokeWidth={focused ? 2.5 : 2} />
+          ),
         }}
       />
       <Tab.Screen
         name="Vocab"
         component={VocabScreen}
         options={{
-          tabBarLabel: t('vocabTab'),
-          tabBarIcon: ({ color, size }) => <Sparkles size={size || 22} color={color} />,
+          tabBarLabel: t('vocabTab') || 'Vocab',
+          tabBarIcon: ({ color, size, focused }) => (
+            <Sparkles size={focused ? 24 : 22} color={color} strokeWidth={focused ? 2.5 : 2} />
+          ),
         }}
       />
       <Tab.Screen
         name="Practice"
         component={PracticeScreen}
         options={{
-          tabBarLabel: t('practiceTab'),
-          tabBarIcon: ({ color, size }) => <Award size={size || 22} color={color} />,
+          tabBarLabel: t('practiceTab') || 'Practice',
+          tabBarIcon: ({ color, size, focused }) => (
+            <Award size={focused ? 24 : 22} color={color} strokeWidth={focused ? 2.5 : 2} />
+          ),
         }}
       />
       <Tab.Screen
         name="Speaking"
         component={SpeakingScreen}
         options={{
-          tabBarLabel: t('speakTab'),
-          tabBarIcon: ({ color, size }) => <Mic size={size || 22} color={color} />,
+          tabBarLabel: t('speakTab') || 'Speaking',
+          tabBarIcon: ({ color, size, focused }) => (
+            <Mic size={focused ? 24 : 22} color={color} strokeWidth={focused ? 2.5 : 2} />
+          ),
         }}
       />
     </Tab.Navigator>

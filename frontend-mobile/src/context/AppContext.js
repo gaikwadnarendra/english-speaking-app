@@ -143,6 +143,7 @@ export const AppProvider = ({ children }) => {
       value={{
         language,
         changeLanguage,
+        setLanguage: changeLanguage,
         isOnboardingDone,
         isOnboarded: Boolean(isOnboardingDone),
         completeOnboarding,
@@ -156,6 +157,7 @@ export const AppProvider = ({ children }) => {
         soundSpeed,
         setSoundSpeed,
         speechRate: soundSpeed,
+        setSpeechRate: setSoundSpeed,
         todaySnapshot,
         refreshTodaySnapshot,
         completedTasks,

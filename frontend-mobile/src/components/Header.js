@@ -1,13 +1,15 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { Flame, Globe, Settings, Heart, TrendingUp } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Flame, Globe, Settings, Heart } from 'lucide-react-native';
 import { COLORS, SPACING, RADIUS, SHADOWS } from '../constants/theme';
 import { useApp } from '../context/AppContext';
 
 const Header = () => {
   const navigation = useNavigation();
-  const { t, language, changeLanguage, streak, userLevel } = useApp();
+  const insets = useSafeAreaInsets();
+  const { t, language, changeLanguage, streak } = useApp();
 
   const cycleLanguage = () => {
     if (language === 'mr') changeLanguage('hi');
@@ -22,7 +24,7 @@ const Header = () => {
   };
 
   return (
-    <View style={styles.headerContainer}>
+    <View style={[styles.headerContainer, { paddingTop: Math.max(insets.top + 6, 12) }]}>
       <TouchableOpacity
         style={styles.brandRow}
         onPress={() => navigation.navigate('Home')}
@@ -32,8 +34,8 @@ const Header = () => {
           <Text style={styles.logoLetter}>E</Text>
         </View>
         <View>
-          <Text style={styles.brandTitle}>{t('appName')}</Text>
-          <Text style={styles.brandBadgeText}>English शिका</Text>
+          <Text style={styles.brandTitle}>English शिका</Text>
+          <Text style={styles.brandBadgeText}>Marathi to English</Text>
         </View>
       </TouchableOpacity>
 
@@ -44,7 +46,7 @@ const Header = () => {
           onPress={() => navigation.navigate('Progress')}
           activeOpacity={0.8}
         >
-          <Flame size={14} color={COLORS.streak} />
+          <Flame size={15} color={COLORS.primary} fill={COLORS.primary} />
           <Text style={styles.streakNumber}>{streak}</Text>
         </TouchableOpacity>
 
@@ -63,7 +65,7 @@ const Header = () => {
           onPress={cycleLanguage}
           activeOpacity={0.7}
         >
-          <Globe size={13} color={COLORS.primary} />
+          <Globe size={13} color={COLORS.secondary} />
           <Text style={styles.langText}>{getLangLabel()}</Text>
         </TouchableOpacity>
 
@@ -85,8 +87,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: SPACING.m,
-    paddingVertical: 10,
+    paddingHorizontal: SPACING.md,
+    paddingBottom: 10,
     backgroundColor: COLORS.white,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
@@ -95,25 +97,26 @@ const styles = StyleSheet.create({
   brandRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: SPACING.s,
+    gap: SPACING.sm,
   },
   logoBadge: {
-    width: 32,
-    height: 32,
+    width: 36,
+    height: 36,
     borderRadius: RADIUS.md,
     backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
+    ...SHADOWS.sm,
   },
   logoLetter: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '900',
     color: COLORS.white,
   },
   brandTitle: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '800',
-    color: COLORS.text,
+    color: COLORS.textMain,
   },
   brandBadgeText: {
     fontSize: 10,
@@ -128,29 +131,29 @@ const styles = StyleSheet.create({
   streakPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 3,
-    backgroundColor: '#FFF7ED',
+    gap: 4,
+    backgroundColor: COLORS.streakBg,
     paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingVertical: 5,
     borderRadius: RADIUS.full,
     borderWidth: 1,
-    borderColor: '#FED7AA',
+    borderColor: COLORS.streakBorder,
   },
   streakNumber: {
     fontSize: 12,
     fontWeight: '800',
-    color: '#C2410C',
+    color: COLORS.primaryDark,
   },
   iconActionBtn: {
-    padding: 6,
+    padding: 7,
     borderRadius: RADIUS.full,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: '#F1F5F9',
   },
   langPill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#EEF2FF',
+    backgroundColor: COLORS.secondaryLight,
     paddingHorizontal: 8,
     paddingVertical: 5,
     borderRadius: RADIUS.full,
@@ -158,8 +161,9 @@ const styles = StyleSheet.create({
   langText: {
     fontSize: 11,
     fontWeight: '800',
-    color: COLORS.primary,
+    color: COLORS.secondary,
   },
 });
 
 export default Header;
+

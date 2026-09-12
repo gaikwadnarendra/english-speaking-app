@@ -19,6 +19,15 @@ export const translations = {
     navFavorites: "My Words",
     navProgress: "Progress",
     navSettings: "Settings",
+    homeTab: "मुख्यपृष्ठ",
+    learnTab: "धडे (Learn)",
+    vocabTab: "शब्दसंग्रह",
+    practiceTab: "सराव (Quiz)",
+    speakTab: "संभाषण",
+    totalWords: "एकूण शब्द",
+    totalSpeaking: "संभाषण सत्रे",
+    quizAverage: "क्विझ अचूकता",
+    totalLessons: "पूर्ण धडे",
     sidebarQuote: "दररोज 5 मिनिटे नियमित सराव तुम्हाला अस्खलित इंग्रजी शिकवेल!",
     
     // Header & Actions
@@ -102,6 +111,15 @@ export const translations = {
     navFavorites: "My Words",
     navProgress: "Progress",
     navSettings: "Settings",
+    homeTab: "होम",
+    learnTab: "पाठ (Learn)",
+    vocabTab: "शब्दावली",
+    practiceTab: "अभ्यास (Quiz)",
+    speakTab: "बोलचाल",
+    totalWords: "कुल शब्द",
+    totalSpeaking: "बोलचाल सत्र",
+    quizAverage: "क्विज़ सटीकता",
+    totalLessons: "पूरे पाठ",
     sidebarQuote: "रोज 5 मिनट का नियमित अभ्यास आपको फर्राटेदार अंग्रेजी सिखाएगा!",
     
     // Header & Actions
@@ -185,6 +203,15 @@ export const translations = {
     navFavorites: "My Words",
     navProgress: "Progress",
     navSettings: "Settings",
+    homeTab: "Home",
+    learnTab: "Learn",
+    vocabTab: "Vocab",
+    practiceTab: "Practice",
+    speakTab: "Speaking",
+    totalWords: "Total Words",
+    totalSpeaking: "Speaking Sessions",
+    quizAverage: "Quiz Accuracy",
+    totalLessons: "Lessons Completed",
     sidebarQuote: "Consistent 5-minute daily practice is the key to speaking fluently!",
     
     // Header & Actions
