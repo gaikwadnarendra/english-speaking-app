@@ -205,6 +205,7 @@ export default function SpeakingScreen() {
   };
   // ================= Fetch scenarios from API in background =================
   useEffect(() => {
+    const loadApiScenarios = async () => {
       try {
         const res = await api.get('/speaking/scenarios', { timeout: 6000 });
         if (res.data?.data && res.data.data.length > 0) {
