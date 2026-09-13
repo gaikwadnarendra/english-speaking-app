@@ -29,7 +29,7 @@ class ErrorBoundary extends Component {
         <View style={styles.errorContainer}>
           <Text style={styles.errorTitle}>काहीतरी अडचण आली / Something went wrong</Text>
           <Text style={styles.errorSubtitle}>
-            ॲप पुन्हा सुरू करण्यासाठी खालील बटण दाबा.
+            {this.state.error?.message || 'ॲप पुन्हा सुरू करण्यासाठी खालील बटण दाबा.'}
           </Text>
           <TouchableOpacity
             style={styles.retryBtn}
