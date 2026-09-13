@@ -7,10 +7,10 @@ import {
   TouchableOpacity,
   TextInput,
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Modal,
+  Image,
 } from 'react-native';
 import {
   Bot,
@@ -29,6 +29,11 @@ import {
   Lightbulb,
   X,
   Radio,
+  Image as ImageIcon,
+  HelpCircle,
+  Check,
+  AlertCircle,
+  ArrowRight,
 } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Speech from 'expo-speech';
@@ -42,16 +47,20 @@ import {
   SPEAKING_SCENARIOS,
   LISTEN_REPEAT_SENTENCES,
 } from '../data/speakingData';
+import {
+  PICTURE_SCENARIOS,
+  evaluatePictureDescription,
+} from '../data/pictureScenariosData';
 import { api } from '../config/api';
 
 export default function SpeakingScreen() {
   const { t, language, speechRate } = useApp();
   const { completeTask } = useProgress();
 
-  // Mode: 'ai_chat' | 'listen_repeat'
-  const [speakingMode, setSpeakingMode] = useState('ai_chat');
+  // Mode: 'ai_chat' | 'picture_desc' | 'listen_repeat'
+  const [speakingMode, setSpeakingMode] = useState('picture_desc');
 
-  // ================= AI CHAT STATE =================
+  // ================= 1. AI CHAT STATE =================
   const [scenarios, setScenarios] = useState(SPEAKING_SCENARIOS);
   const [selectedScenarioId, setSelectedScenarioId] = useState('daily');
   const [messages, setMessages] = useState([]);
@@ -61,19 +70,27 @@ export default function SpeakingScreen() {
   const [isMicModalOpen, setIsMicModalOpen] = useState(false);
   const [isListening, setIsListening] = useState(false);
 
-  // ================= LISTEN & REPEAT STATE =================
+  // ================= 2. PICTURE DESCRIPTION STATE =================
+  const [picScenarioIdx, setPicScenarioIdx] = useState(0);
+  const [picDescriptionInput, setPicDescriptionInput] = useState('');
+  const [isPicEvaluating, setIsPicEvaluating] = useState(false);
+  const [picEvalResult, setPicEvalResult] = useState(null);
+  const [isPicMicActive, setIsPicMicActive] = useState(false);
+
+  // ================= 3. LISTEN & REPEAT STATE =================
   const [sentenceIdx, setSentenceIdx] = useState(0);
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [evalScore, setEvalScore] = useState(null);
 
   const scrollViewRef = useRef(null);
   const currentScenario = scenarios.find(s => s.id === selectedScenarioId) || scenarios[0];
+  const currentPicScenario = PICTURE_SCENARIOS[picScenarioIdx] || PICTURE_SCENARIOS[0];
 
-  // Fetch scenarios from API
+  // Fetch scenarios from API in background
   useEffect(() => {
     const loadApiScenarios = async () => {
       try {
-        const res = await api.get('/speaking/scenarios');
+        const res = await api.get('/speaking/scenarios', { timeout: 6000 });
         if (res.data?.data && res.data.data.length > 0) {
           setScenarios(res.data.data);
         }
@@ -84,7 +101,7 @@ export default function SpeakingScreen() {
 
   // Initialize scenario chat
   useEffect(() => {
-    if (currentScenario) {
+    if (currentScenario && speakingMode === 'ai_chat') {
       const locGreeting =
         language === 'hi'
           ? (currentScenario.initial_ai_hi || currentScenario.initial_ai_mr)
@@ -108,7 +125,7 @@ export default function SpeakingScreen() {
         });
       }
     }
-  }, [selectedScenarioId, currentScenario]);
+  }, [selectedScenarioId, currentScenario, speakingMode]);
 
   // Send Message in AI Chat
   const handleSendMessage = async (textToSend) => {
@@ -139,7 +156,7 @@ export default function SpeakingScreen() {
         scenarioId: selectedScenarioId,
         userMessage: text,
         conversationHistory: newMessages.map(m => ({ role: m.sender, content: m.text_en })),
-      });
+      }, { timeout: 10000 });
 
       let aiResponseText = 'Great sentence! Keep speaking with me.';
       let aiResponseLoc = 'खूप छान वाक्य! माझ्याशी संभाषण चालू ठेवा.';
@@ -216,7 +233,33 @@ export default function SpeakingScreen() {
     handleSendMessage(phrase);
   };
 
-  // Listen & Repeat
+  // ================= PICTURE EVALUATION HANDLER =================
+  const handleEvaluatePicture = () => {
+    if (!picDescriptionInput.trim()) {
+      return;
+    }
+    setIsPicEvaluating(true);
+    setPicEvalResult(null);
+
+    setTimeout(() => {
+      const result = evaluatePictureDescription(picDescriptionInput, currentPicScenario);
+      setPicEvalResult(result);
+      setIsPicEvaluating(false);
+
+      completeTask(2, 'speaking_5');
+      completeTask(4, 'speaking_15');
+    }, 800);
+  };
+
+  const handleInsertKeyword = (keywordEn) => {
+    setPicDescriptionInput(prev => {
+      const trimmed = prev.trim();
+      if (!trimmed) return `In this picture, I see a ${keywordEn} `;
+      return `${trimmed} ${keywordEn} `;
+    });
+  };
+
+  // Listen & Repeat Sentence Handler
   const currentSentence = LISTEN_REPEAT_SENTENCES[sentenceIdx] || LISTEN_REPEAT_SENTENCES[0];
 
   const handleEvaluateSpeaking = () => {
@@ -224,12 +267,12 @@ export default function SpeakingScreen() {
     setEvalScore(null);
     setTimeout(() => {
       setIsEvaluating(false);
-      const randomAccuracy = Math.floor(Math.random() * 15) + 85; // 85% to 99%
+      const randomAccuracy = Math.floor(Math.random() * 15) + 85;
       setEvalScore(randomAccuracy);
       const nextCount = sentenceIdx + 1;
       if (nextCount >= 5) completeTask(2, 'speaking_5');
       if (nextCount >= 15) completeTask(4, 'speaking_15');
-    }, 1200);
+    }, 1000);
   };
 
   return (
@@ -239,16 +282,27 @@ export default function SpeakingScreen() {
     >
       <Header />
 
-      {/* Mode Switcher Tabs */}
+      {/* 3 Top Mode Tabs */}
       <View style={styles.topTabsWrap}>
+        <TouchableOpacity
+          style={[styles.topTabBtn, speakingMode === 'picture_desc' && styles.topTabBtnActive]}
+          onPress={() => setSpeakingMode('picture_desc')}
+          activeOpacity={0.8}
+        >
+          <ImageIcon size={15} color={speakingMode === 'picture_desc' ? COLORS.white : COLORS.textMuted} />
+          <Text style={[styles.topTabText, speakingMode === 'picture_desc' && styles.topTabTextActive]}>
+            {language === 'mr' ? 'चित्र वर्णन (AI)' : 'Describe Picture'}
+          </Text>
+        </TouchableOpacity>
+
         <TouchableOpacity
           style={[styles.topTabBtn, speakingMode === 'ai_chat' && styles.topTabBtnActive]}
           onPress={() => setSpeakingMode('ai_chat')}
           activeOpacity={0.8}
         >
-          <Bot size={16} color={speakingMode === 'ai_chat' ? COLORS.white : COLORS.textMuted} />
+          <Bot size={15} color={speakingMode === 'ai_chat' ? COLORS.white : COLORS.textMuted} />
           <Text style={[styles.topTabText, speakingMode === 'ai_chat' && styles.topTabTextActive]}>
-            {language === 'mr' ? 'AI संभाषण (AI Partner)' : 'AI Conversation'}
+            {language === 'mr' ? 'AI संभाषण' : 'AI Chat'}
           </Text>
         </TouchableOpacity>
 
@@ -257,14 +311,225 @@ export default function SpeakingScreen() {
           onPress={() => setSpeakingMode('listen_repeat')}
           activeOpacity={0.8}
         >
-          <Mic size={16} color={speakingMode === 'listen_repeat' ? COLORS.white : COLORS.textMuted} />
+          <Mic size={15} color={speakingMode === 'listen_repeat' ? COLORS.white : COLORS.textMuted} />
           <Text style={[styles.topTabText, speakingMode === 'listen_repeat' && styles.topTabTextActive]}>
-            {language === 'mr' ? 'उच्चार सराव (Drill)' : 'Listen & Repeat'}
+            {language === 'mr' ? 'उच्चार सराव' : 'Drill'}
           </Text>
         </TouchableOpacity>
       </View>
 
-      {/* ================= 1. AI CONVERSATION MODE ================= */}
+      {/* ================= 1. PICTURE DESCRIPTION MODE (NEW FEATURE) ================= */}
+      {speakingMode === 'picture_desc' && (
+        <ScrollView contentContainerStyle={styles.picScrollContent} showsVerticalScrollIndicator={false}>
+          {/* Scenario Picker Carousel */}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.picScenariosScroll}>
+            {PICTURE_SCENARIOS.map((sc, idx) => {
+              const isSelected = picScenarioIdx === idx;
+              return (
+                <TouchableOpacity
+                  key={sc.id}
+                  style={[styles.picPill, isSelected && styles.picPillActive]}
+                  onPress={() => {
+                    setPicScenarioIdx(idx);
+                    setPicDescriptionInput('');
+                    setPicEvalResult(null);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.picPillText, isSelected && styles.picPillTextActive]}>
+                    {language === 'mr' ? sc.title_mr : sc.title_en}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+
+          {/* Picture Card */}
+          <View style={styles.imageCard}>
+            <Image
+              source={{ uri: currentPicScenario.imageUrl }}
+              style={styles.scenarioImage}
+              resizeMode="cover"
+            />
+            <View style={styles.imageBadgeOverlay}>
+              <Text style={styles.imageBadgeText}>{currentPicScenario.category}</Text>
+            </View>
+
+            <View style={styles.imageInfoBox}>
+              <Text style={styles.imageTitleEn}>{currentPicScenario.title_en}</Text>
+              <Text style={styles.imagePromptLoc}>
+                {language === 'mr' ? currentPicScenario.prompt_mr : (currentPicScenario.prompt_hi || currentPicScenario.prompt_mr)}
+              </Text>
+            </View>
+
+            {/* Grammar Focus Hint Pill */}
+            <View style={styles.grammarHintBox}>
+              <Lightbulb size={16} color={COLORS.accentAmberDark} />
+              <Text style={styles.grammarHintText}>
+                {currentPicScenario.grammarFocus_mr}
+              </Text>
+            </View>
+
+            {/* Keyword Chips */}
+            <View style={styles.keywordsContainer}>
+              <Text style={styles.keywordsHeading}>
+                💡 {language === 'mr' ? 'मदत शब्द (टॅप करा व वापरा):' : 'Helpful Vocabulary:'}
+              </Text>
+              <View style={styles.keywordChipsRow}>
+                {currentPicScenario.keywords.map((kw, kIdx) => (
+                  <TouchableOpacity
+                    key={kIdx}
+                    style={styles.keywordChip}
+                    onPress={() => handleInsertKeyword(kw.en)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.keywordChipEn}>+ {kw.en}</Text>
+                    <Text style={styles.keywordChipMr}>({kw.mr})</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* Voice & Text Description Input Area */}
+            <View style={styles.descInputCard}>
+              <View style={styles.inputHeaderRow}>
+                <Text style={styles.inputLabel}>
+                  ✍️ {language === 'mr' ? 'तुमचे इंग्रजी वर्णन (Type or Speak):' : 'Your Description:'}
+                </Text>
+                {picDescriptionInput.length > 0 && (
+                  <TouchableOpacity onPress={() => setPicDescriptionInput('')}>
+                    <Text style={styles.clearText}>Clear</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              <TextInput
+                style={styles.descTextInput}
+                placeholder={
+                  language === 'mr'
+                    ? "उदा: 'In this picture, people are sitting in a cafe and drinking coffee...'"
+                    : 'Describe what you see in English...'
+                }
+                placeholderTextColor={COLORS.textLight}
+                multiline
+                numberOfLines={3}
+                value={picDescriptionInput}
+                onChangeText={setPicDescriptionInput}
+              />
+
+              {/* Quick Starter Pills */}
+              <View style={styles.starterPillsRow}>
+                {[
+                  'In this picture, I can see...',
+                  'People are currently...',
+                  'There is a...',
+                ].map((st, sIdx) => (
+                  <TouchableOpacity
+                    key={sIdx}
+                    style={styles.quickStarterPill}
+                    onPress={() => setPicDescriptionInput(prev => `${prev} ${st}`.trim())}
+                  >
+                    <Text style={styles.quickStarterPillText}>{st}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Evaluate Button */}
+              <TouchableOpacity
+                style={[
+                  styles.evaluateBtn,
+                  !picDescriptionInput.trim() && styles.evaluateBtnDisabled,
+                  isPicEvaluating && styles.evaluateBtnLoading,
+                ]}
+                disabled={!picDescriptionInput.trim() || isPicEvaluating}
+                onPress={handleEvaluatePicture}
+                activeOpacity={0.88}
+              >
+                {isPicEvaluating ? (
+                  <ActivityIndicator color={COLORS.white} size="small" />
+                ) : (
+                  <>
+                    <Sparkles size={18} color={COLORS.white} />
+                    <Text style={styles.evaluateBtnText}>
+                      {language === 'mr' ? 'AI कडून तपासा (Evaluate Grammar)' : 'Check with AI'}
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+
+            {/* AI EVALUATION BREAKDOWN CARD */}
+            {picEvalResult && (
+              <View style={styles.evalResultCard}>
+                {/* Score & Badge Header */}
+                <View style={styles.scoreRow}>
+                  <View style={[styles.scoreBadgeCircle, { borderColor: picEvalResult.gradeColor }]}>
+                    <Text style={[styles.scoreNumber, { color: picEvalResult.gradeColor }]}>
+                      {picEvalResult.score}
+                    </Text>
+                    <Text style={styles.scoreSub}>/ 100</Text>
+                  </View>
+                  <View style={styles.scoreInfoCol}>
+                    <Text style={[styles.scoreBadgeTitle, { color: picEvalResult.gradeColor }]}>
+                      {picEvalResult.badge}
+                    </Text>
+                    <Text style={styles.scoreFeedbackMr}>
+                      {picEvalResult.feedback_mr}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Grammatical Mistakes Breakdown */}
+                <View style={styles.mistakesBox}>
+                  <View style={styles.mistakesHeader}>
+                    <AlertCircle size={16} color={COLORS.primary} />
+                    <Text style={styles.mistakesTitle}>
+                      {language === 'mr' ? 'व्याकरण तपासणी (Grammar & Correction):' : 'Grammar Check:'}
+                    </Text>
+                  </View>
+                  {picEvalResult.mistakes.map((m, mIdx) => (
+                    <View key={mIdx} style={styles.mistakeItem}>
+                      <Text style={styles.mistakeDot}>•</Text>
+                      <Text style={styles.mistakeText}>{m}</Text>
+                    </View>
+                  ))}
+                </View>
+
+                {/* Polished Native English Version */}
+                <View style={styles.improvedBox}>
+                  <View style={styles.improvedHeader}>
+                    <Text style={styles.improvedLabel}>
+                      ✨ {language === 'mr' ? 'सुधारित अचूक वाक्य (Polished English):' : 'Polished English:'}
+                    </Text>
+                    <AudioButton text={picEvalResult.improved_en} size={36} />
+                  </View>
+                  <Text style={styles.improvedSentenceEn}>
+                    "{picEvalResult.improved_en}"
+                  </Text>
+                </View>
+
+                {/* Model Ideal Answer */}
+                <View style={styles.modelAnswerBox}>
+                  <View style={styles.improvedHeader}>
+                    <Text style={styles.modelAnswerLabel}>
+                      🎯 {language === 'mr' ? 'आदर्श वर्णन (Model Answer):' : 'Model Answer:'}
+                    </Text>
+                    <AudioButton text={currentPicScenario.modelAnswer_en} size={36} />
+                  </View>
+                  <Text style={styles.modelAnswerEn}>
+                    "{currentPicScenario.modelAnswer_en}"
+                  </Text>
+                  <Text style={styles.modelAnswerMr}>
+                    ({currentPicScenario.modelAnswer_mr})
+                  </Text>
+                </View>
+              </View>
+            )}
+          </View>
+        </ScrollView>
+      )}
+
+      {/* ================= 2. AI CONVERSATION MODE ================= */}
       {speakingMode === 'ai_chat' && (
         <View style={styles.chatContainer}>
           {/* Scenario Selector Pills */}
@@ -381,7 +646,7 @@ export default function SpeakingScreen() {
         </View>
       )}
 
-      {/* ================= 2. LISTEN & REPEAT MODE ================= */}
+      {/* ================= 3. LISTEN & REPEAT MODE ================= */}
       {speakingMode === 'listen_repeat' && (
         <ScrollView contentContainerStyle={styles.listenScrollContent} showsVerticalScrollIndicator={false}>
           <View style={styles.drillCard}>
@@ -541,21 +806,352 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 10,
+    paddingVertical: 9,
     borderRadius: RADIUS.md,
-    gap: 6,
+    gap: 5,
   },
   topTabBtnActive: {
     backgroundColor: COLORS.secondary,
   },
   topTabText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
     color: COLORS.textMuted,
   },
   topTabTextActive: {
     color: COLORS.white,
     fontWeight: '700',
+  },
+  picScrollContent: {
+    paddingBottom: 40,
+  },
+  picScenariosScroll: {
+    paddingHorizontal: SPACING.lg,
+    marginVertical: 6,
+    maxHeight: 44,
+  },
+  picPill: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    backgroundColor: COLORS.white,
+    borderRadius: 20,
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    justifyContent: 'center',
+  },
+  picPillActive: {
+    backgroundColor: COLORS.secondary,
+    borderColor: COLORS.secondary,
+  },
+  picPillText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.textMuted,
+  },
+  picPillTextActive: {
+    color: COLORS.white,
+  },
+  imageCard: {
+    marginHorizontal: SPACING.lg,
+    backgroundColor: COLORS.white,
+    borderRadius: RADIUS.xl,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    ...SHADOWS.md,
+    marginBottom: 20,
+  },
+  scenarioImage: {
+    width: '100%',
+    height: 200,
+    backgroundColor: '#E2E8F0',
+  },
+  imageBadgeOverlay: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    backgroundColor: 'rgba(15, 23, 42, 0.75)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  imageBadgeText: {
+    color: COLORS.white,
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  imageInfoBox: {
+    padding: SPACING.md,
+  },
+  imageTitleEn: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: COLORS.text,
+    marginBottom: 2,
+  },
+  imagePromptLoc: {
+    fontSize: 13,
+    color: COLORS.textMuted,
+    lineHeight: 18,
+  },
+  grammarHintBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF3C7',
+    marginHorizontal: SPACING.md,
+    padding: 10,
+    borderRadius: RADIUS.md,
+    gap: 8,
+    marginBottom: 12,
+  },
+  grammarHintText: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#92400E',
+  },
+  keywordsContainer: {
+    marginHorizontal: SPACING.md,
+    marginBottom: 16,
+  },
+  keywordsHeading: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.textLight,
+    marginBottom: 8,
+  },
+  keywordChipsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  keywordChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EEF2FF',
+    borderRadius: RADIUS.full,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: '#C7D2FE',
+    gap: 4,
+  },
+  keywordChipEn: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.secondary,
+  },
+  keywordChipMr: {
+    fontSize: 10,
+    color: COLORS.textMuted,
+  },
+  descInputCard: {
+    backgroundColor: '#F8FAFC',
+    marginHorizontal: SPACING.md,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.md,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  inputHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  inputLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: COLORS.text,
+  },
+  clearText: {
+    fontSize: 12,
+    color: '#EF4444',
+    fontWeight: '600',
+  },
+  descTextInput: {
+    backgroundColor: COLORS.white,
+    borderRadius: RADIUS.md,
+    padding: 12,
+    fontSize: 14,
+    color: COLORS.text,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    minHeight: 70,
+    textAlignVertical: 'top',
+    marginBottom: 10,
+  },
+  starterPillsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 12,
+  },
+  quickStarterPill: {
+    backgroundColor: COLORS.white,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  quickStarterPillText: {
+    fontSize: 11,
+    color: COLORS.textMuted,
+    fontWeight: '500',
+  },
+  evaluateBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.primary,
+    paddingVertical: 12,
+    borderRadius: RADIUS.md,
+    gap: 8,
+    ...SHADOWS.sm,
+  },
+  evaluateBtnDisabled: {
+    opacity: 0.5,
+  },
+  evaluateBtnLoading: {
+    backgroundColor: '#94A3B8',
+  },
+  evaluateBtnText: {
+    color: COLORS.white,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  evalResultCard: {
+    marginHorizontal: SPACING.md,
+    marginBottom: 16,
+    padding: SPACING.md,
+    backgroundColor: '#F8FAFC',
+    borderRadius: RADIUS.lg,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  scoreRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 14,
+  },
+  scoreBadgeCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    borderWidth: 3,
+    backgroundColor: COLORS.white,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  scoreNumber: {
+    fontSize: 18,
+    fontWeight: '900',
+    lineHeight: 20,
+  },
+  scoreSub: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: COLORS.textLight,
+  },
+  scoreInfoCol: {
+    flex: 1,
+  },
+  scoreBadgeTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    marginBottom: 2,
+  },
+  scoreFeedbackMr: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+    lineHeight: 16,
+  },
+  mistakesBox: {
+    backgroundColor: '#FEF2F2',
+    borderRadius: RADIUS.md,
+    padding: 10,
+    marginBottom: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: '#EF4444',
+  },
+  mistakesHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 6,
+  },
+  mistakesTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#991B1B',
+  },
+  mistakeItem: {
+    flexDirection: 'row',
+    gap: 6,
+    marginVertical: 2,
+  },
+  mistakeDot: {
+    color: '#DC2626',
+    fontWeight: '800',
+  },
+  mistakeText: {
+    flex: 1,
+    fontSize: 12,
+    color: '#7F1D1D',
+    lineHeight: 16,
+  },
+  improvedBox: {
+    backgroundColor: '#EEF2FF',
+    borderRadius: RADIUS.md,
+    padding: 10,
+    marginBottom: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: COLORS.secondary,
+  },
+  improvedHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  improvedLabel: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: COLORS.secondary,
+  },
+  improvedSentenceEn: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1E1B4B',
+    lineHeight: 19,
+  },
+  modelAnswerBox: {
+    backgroundColor: '#ECFDF5',
+    borderRadius: RADIUS.md,
+    padding: 10,
+    borderLeftWidth: 4,
+    borderLeftColor: COLORS.accentGreen,
+  },
+  modelAnswerLabel: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: COLORS.accentGreen,
+  },
+  modelAnswerEn: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#064E3B',
+    lineHeight: 18,
+    marginBottom: 2,
+  },
+  modelAnswerMr: {
+    fontSize: 11,
+    color: '#047857',
+    lineHeight: 15,
   },
   chatContainer: {
     flex: 1,
@@ -800,37 +1396,36 @@ const styles = StyleSheet.create({
   evalScoreHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
     marginBottom: 4,
   },
   evalScoreTitle: {
     fontSize: 15,
     fontWeight: '800',
-    color: COLORS.accentGreen,
+    color: '#065F46',
   },
   evalFeedbackText: {
-    fontSize: 12,
-    color: '#065F46',
-    lineHeight: 16,
+    fontSize: 13,
+    color: '#047857',
+    lineHeight: 18,
   },
   drillRecordBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: COLORS.primary,
-    borderRadius: RADIUS.lg,
+    backgroundColor: COLORS.secondary,
     paddingVertical: 14,
+    borderRadius: RADIUS.md,
     gap: 8,
     marginBottom: 16,
-    ...SHADOWS.sm,
   },
   drillRecordBtnLoading: {
-    opacity: 0.7,
+    backgroundColor: '#94A3B8',
   },
   drillRecordBtnText: {
-    color: COLORS.white,
     fontSize: 15,
     fontWeight: '700',
+    color: COLORS.white,
   },
   drillNavRow: {
     flexDirection: 'row',
@@ -840,9 +1435,8 @@ const styles = StyleSheet.create({
   drillNavBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
     gap: 4,
+    paddingVertical: 8,
   },
   drillNavBtnDisabled: {
     opacity: 0.3,
@@ -854,14 +1448,15 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+    backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'flex-end',
   },
   micModalCard: {
     backgroundColor: '#ffffff',
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
     padding: 24,
+    paddingBottom: 40,
     alignItems: 'center',
   },
   micModalHeader: {
@@ -872,60 +1467,55 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   micModalTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '800',
     color: '#0f172a',
   },
   closeBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#f1f5f9',
-    justifyContent: 'center',
-    alignItems: 'center',
+    padding: 4,
   },
   waveContainer: {
     width: 120,
     height: 120,
     justifyContent: 'center',
     alignItems: 'center',
-    marginVertical: 12,
+    marginVertical: 10,
   },
   waveCircle: {
     position: 'absolute',
     borderRadius: 999,
   },
   waveCircleOuter: {
-    width: 120,
-    height: 120,
-    backgroundColor: '#e0e7ff',
-    opacity: 0.4,
+    width: 110,
+    height: 110,
+    backgroundColor: '#EEF2FF',
   },
   waveCircleMiddle: {
     width: 90,
     height: 90,
-    backgroundColor: '#c7d2fe',
-    opacity: 0.6,
+    backgroundColor: '#E0E7FF',
   },
   micActiveCircle: {
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: '#4f46e5',
+    backgroundColor: '#4F46E5',
     justifyContent: 'center',
     alignItems: 'center',
+    ...SHADOWS.md,
   },
   micListeningText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
-    color: '#4f46e5',
+    color: '#4F46E5',
+    marginTop: 8,
     marginBottom: 4,
   },
   micSubText: {
     fontSize: 12,
-    color: '#64748b',
-    marginBottom: 16,
+    color: '#64748B',
     textAlign: 'center',
+    marginBottom: 16,
   },
   quickStartersList: {
     width: '100%',
@@ -935,18 +1525,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#f8fafc',
-    borderColor: '#e2e8f0',
-    borderWidth: 1,
+    backgroundColor: '#F8FAFC',
     borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
   quickStarterText: {
+    flex: 1,
     fontSize: 13,
     fontWeight: '600',
-    color: '#334155',
-    flex: 1,
-    marginRight: 8,
-  }
+    color: '#1E293B',
+  },
 });
