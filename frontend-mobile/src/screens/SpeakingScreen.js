@@ -42,10 +42,6 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Speech from 'expo-speech';
 import { Audio } from 'expo-av';
-import {
-  ExpoSpeechRecognitionModule,
-  useSpeechRecognitionEvent,
-} from 'expo-speech-recognition';
 
 import { useApp } from '../context/AppContext';
 import { useProgress } from '../context/ProgressContext';
@@ -207,78 +203,8 @@ export default function SpeakingScreen() {
       Alert.alert('Recording Error', 'Could not start recording. Please try again.');
     }
   };
-  // ================= STT EVENT LISTENERS =================
-  useSpeechRecognitionEvent('start', () => setSttActive(true));
-  useSpeechRecognitionEvent('end', () => { setSttActive(false); setSttPartial(''); });
-  useSpeechRecognitionEvent('error', (e) => {
-    setSttActive(false);
-    setSttPartial('');
-    console.warn('STT error:', e.error, e.message);
-  });
-  useSpeechRecognitionEvent('result', (e) => {
-    const transcript = e.results?.[0]?.transcript || '';
-    if (!transcript) return;
-    if (e.isFinal) {
-      setSttPartial('');
-      setSttActive(false);
-      if (sttTarget === 'chat') {
-        // Auto-send the recognized text to AI chat
-        handleSendMessage(transcript);
-        setIsMicModalOpen(false);
-      } else if (sttTarget === 'drill') {
-        // Evaluate the recognized speech for drill mode
-        setIsRecording(false);
-        setIsEvaluating(true);
-        setTimeout(() => {
-          setIsEvaluating(false);
-          const randomAccuracy = Math.floor(Math.random() * 15) + 85;
-          setEvalScore(randomAccuracy);
-          const nextCount = sentenceIdx + 1;
-          if (nextCount >= 5) completeTask(2, 'speaking_5');
-          if (nextCount >= 15) completeTask(4, 'speaking_15');
-        }, 800);
-      }
-    } else {
-      setSttPartial(transcript);
-    }
-  });
-
-  // Start STT for a given target ('chat' | 'drill')
-  const startSTT = async (target) => {
-    let permitted = micPermission === 'granted';
-    if (!permitted) permitted = await requestMicPermission();
-    if (!permitted) {
-      Alert.alert(
-        'Microphone Permission Required',
-        'Please allow microphone access to use voice features.',
-        [{ text: 'OK' }]
-      );
-      return false;
-    }
-    try {
-      setSttTarget(target);
-      setSttPartial('');
-      ExpoSpeechRecognitionModule.start({
-        lang: 'en-US',
-        interimResults: true,
-        maxAlternatives: 1,
-        continuous: false,
-      });
-      return true;
-    } catch (e) {
-      Alert.alert('Voice Error', 'Could not start listening. Please try again.');
-      return false;
-    }
-  };
-
-  const stopSTT = () => {
-    try { ExpoSpeechRecognitionModule.stop(); } catch (e) {}
-    setSttActive(false);
-    setSttPartial('');
-  };
-
+  // ================= Fetch scenarios from API in background =================
   useEffect(() => {
-    const loadApiScenarios = async () => {
       try {
         const res = await api.get('/speaking/scenarios', { timeout: 6000 });
         if (res.data?.data && res.data.data.length > 0) {
@@ -417,14 +343,20 @@ export default function SpeakingScreen() {
   };
 
   const handleOpenMic = async () => {
-    const started = await startSTT('chat');
-    if (started) {
-      setIsMicModalOpen(true);
+    let permitted = micPermission === 'granted';
+    if (!permitted) permitted = await requestMicPermission();
+    if (!permitted) {
+      Alert.alert(
+        'Microphone Permission Required',
+        'Please allow mic access in Settings to use voice input.',
+        [{ text: 'OK' }]
+      );
+      return;
     }
+    setIsMicModalOpen(true);
   };
 
   const handleCloseMicModal = () => {
-    stopSTT();
     setIsMicModalOpen(false);
   };
 
@@ -463,16 +395,29 @@ export default function SpeakingScreen() {
   // Listen & Repeat Sentence Handler
   const currentSentence = LISTEN_REPEAT_SENTENCES[sentenceIdx] || LISTEN_REPEAT_SENTENCES[0];
 
-  // Drill: tap to start STT, tap again to stop
+  // Drill: tap to record via expo-av, tap again to stop & score
   const handleEvaluateSpeaking = async () => {
     if (isEvaluating) return;
-    if (sttActive && sttTarget === 'drill') {
-      stopSTT();
+    if (isRecording) {
+      // Stop recording and evaluate
+      setIsRecording(false);
+      if (recordingRef.current) {
+        try { await recordingRef.current.stopAndUnloadAsync(); } catch (e) {}
+        recordingRef.current = null;
+      }
+      setIsEvaluating(true);
+      setTimeout(() => {
+        setIsEvaluating(false);
+        const score = Math.floor(Math.random() * 15) + 85;
+        setEvalScore(score);
+        const nextCount = sentenceIdx + 1;
+        if (nextCount >= 5) completeTask(2, 'speaking_5');
+        if (nextCount >= 15) completeTask(4, 'speaking_15');
+      }, 1000);
       return;
     }
-    await startSTT('drill');
-    setIsRecording(true);
-    setEvalScore(null);
+    // Start recording
+    await handleDrillRecord();
   };
 
   return (
@@ -974,33 +919,20 @@ export default function SpeakingScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* Animated Pulse Mic */}
+            {/* Animated Mic */}
             <View style={styles.waveContainer}>
-              {sttActive && (
-                <Animated.View style={[styles.waveCircle, styles.waveCircleOuter, { transform: [{ scale: pulseAnim }] }]} />
-              )}
+              <Animated.View style={[styles.waveCircle, styles.waveCircleOuter, { transform: [{ scale: pulseAnim }] }]} />
               <View style={[styles.waveCircle, styles.waveCircleMiddle]} />
-              <View style={[styles.micActiveCircle, sttActive && { backgroundColor: '#EF4444' }]}>
+              <View style={styles.micActiveCircle}>
                 <Mic size={36} color="#ffffff" />
               </View>
             </View>
 
-            {/* Live transcript display */}
-            <View style={styles.sttTranscriptBox}>
-              <Text style={styles.sttTranscriptText}>
-                {sttActive
-                  ? (sttPartial || '🎙️ बोलणे सुरू करा... (Start speaking in English)')
-                  : '🎙️ Mic tap केल्यावर बोला...'}
-              </Text>
-            </View>
-
+            <Text style={styles.micListeningText}>🎙️ Keyboard चा mic बटण वापरा</Text>
             <Text style={styles.micSubText}>
-              {language === 'mr'
-                ? 'इंग्रजीत बोला — AI तुमचे ऐकेल आणि तुम्हाला प्रतिसाद देईल.'
-                : 'Speak in English — AI will listen and respond.'}
+              Android keyboard वर 🎤 icon tap करा → English बोला → text येईल
             </Text>
-
-            <Text style={styles.micSubText}>किंवा खालील वाक्य टॅप करा:</Text>
+            <Text style={styles.micSubText}>किंवा खालील ready-made वाक्य tap करा:</Text>
 
             <View style={styles.quickStartersList}>
               {(currentScenario?.suggested_starter || [
