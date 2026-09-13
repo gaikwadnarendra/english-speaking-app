@@ -24,6 +24,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { useApp } from '../context/AppContext';
+import { useProgress } from '../context/ProgressContext';
 import { COLORS, SPACING, RADIUS, SHADOWS } from '../constants/theme';
 import Header from '../components/Header';
 
@@ -32,6 +33,7 @@ const DAILY_TASKS_KEY = '@english_shika_daily_tasks';
 export default function DailyScreen() {
   const navigation = useNavigation();
   const { t, language, streak } = useApp();
+  const { completeTask } = useProgress();
 
   const [tasks, setTasks] = useState([
     {
@@ -102,6 +104,7 @@ export default function DailyScreen() {
     const completedIds = updated.filter(tk => tk.completed).map(tk => tk.id);
     try {
       await AsyncStorage.setItem(DAILY_TASKS_KEY, JSON.stringify(completedIds));
+      completeTask(4, 'daily_streak');
     } catch (e) {}
   };
 

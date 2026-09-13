@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   TextInput,
   Modal,
-  FlatList,
   ActivityIndicator,
 } from 'react-native';
 import {
@@ -33,6 +32,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Speech from 'expo-speech';
 
 import { useApp } from '../context/AppContext';
+import { useProgress } from '../context/ProgressContext';
 import { COLORS, SPACING, RADIUS, SHADOWS } from '../constants/theme';
 import Header from '../components/Header';
 import AudioButton from '../components/AudioButton';
@@ -40,9 +40,11 @@ import { INITIAL_LESSONS } from '../data/lessonsData';
 import { api } from '../config/api';
 
 const COMPLETED_LESSONS_KEY = '@english_shika_completed_lessons';
+const LESSONS_CACHE_PREFIX = '@english_shika_lessons_cache_lvl_';
 
 export default function LearnScreen() {
   const { t, language, speechRate, userLevel } = useApp();
+  const { completeTask } = useProgress();
 
   const [activeLevel, setActiveLevel] = useState(1);
   const [lessons, setLessons] = useState(INITIAL_LESSONS);
@@ -50,7 +52,7 @@ export default function LearnScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [selectedLesson, setSelectedLesson] = useState(null);
-  const [activeTab, setActiveTab] = useState('vocab'); // 'vocab' | 'flashcards' | 'dialogue' | 'grammar' | 'quiz'
+  const [activeTab, setActiveTab] = useState('vocab'); // 'vocab' | 'dialogue' | 'flashcards' | 'grammar' | 'quiz'
 
   // Flashcards state
   const [flashcardIdx, setFlashcardIdx] = useState(0);
@@ -60,45 +62,82 @@ export default function LearnScreen() {
   const [quizAnswers, setQuizAnswers] = useState({});
   const [quizSubmitted, setQuizSubmitted] = useState(false);
 
-  // Load completed lessons
+  // Load completed lessons & cached lessons from local storage
   useEffect(() => {
-    const loadProgress = async () => {
+    const loadProgressAndCache = async () => {
       try {
         const stored = await AsyncStorage.getItem(COMPLETED_LESSONS_KEY);
         if (stored) setCompletedIds(JSON.parse(stored));
-      } catch (e) {}
-    };
-    loadProgress();
-  }, []);
 
-  // Fetch online updates
-  useEffect(() => {
-    const fetchApiLessons = async () => {
-      try {
-        const res = await api.get(`/lessons?level=${activeLevel}`);
-        if (res.data?.data && res.data.data.length > 0) {
-          setLessons(res.data.data);
+        const cached = await AsyncStorage.getItem(`${LESSONS_CACHE_PREFIX}${activeLevel}`);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setLessons(prev => {
+              const updated = [...prev];
+              parsed.forEach(pL => {
+                const idx = updated.findIndex(u => u.id === pL.id);
+                if (idx >= 0) updated[idx] = { ...updated[idx], ...pL };
+                else updated.push(pL);
+              });
+              return updated;
+            });
+          }
         }
       } catch (e) {}
     };
+    loadProgressAndCache();
+  }, [activeLevel]);
+
+  // Background fetch online lessons without freezing UI
+  useEffect(() => {
+    let isMounted = true;
+    const fetchApiLessons = async () => {
+      try {
+        const res = await api.get(`/lessons?level=${activeLevel}`, { timeout: 8000 });
+        if (isMounted && res.data?.data && Array.isArray(res.data.data) && res.data.data.length > 0) {
+          const apiLessons = res.data.data;
+          setLessons(prev => {
+            const updated = [...prev];
+            apiLessons.forEach(apiL => {
+              const idx = updated.findIndex(u => u.id === apiL.id);
+              if (idx >= 0) {
+                updated[idx] = { ...updated[idx], ...apiL };
+              } else {
+                updated.push(apiL);
+              }
+            });
+            return updated;
+          });
+          AsyncStorage.setItem(`${LESSONS_CACHE_PREFIX}${activeLevel}`, JSON.stringify(apiLessons)).catch(() => {});
+        }
+      } catch (e) {
+        // Silently use resilient local dataset with zero lag
+      }
+    };
     fetchApiLessons();
+    return () => {
+      isMounted = false;
+    };
   }, [activeLevel]);
 
   const categories = ['All', 'Basics', 'Phrases', 'Grammar', 'Conversation', 'Work'];
 
-  const filteredLessons = lessons.filter(l => {
-    const matchesLevel = l.level === activeLevel;
-    const matchesCategory =
-      selectedCategory === 'All' ||
-      (l.category && l.category.toLowerCase() === selectedCategory.toLowerCase());
-    const q = searchQuery.trim().toLowerCase();
-    const matchesSearch =
-      !q ||
-      (l.title_en && l.title_en.toLowerCase().includes(q)) ||
-      (l.title_mr && l.title_mr.includes(q)) ||
-      (l.title_hi && l.title_hi.includes(q));
-    return matchesLevel && matchesCategory && matchesSearch;
-  });
+  const filteredLessons = useMemo(() => {
+    return lessons.filter(l => {
+      const matchesLevel = l.level === activeLevel;
+      const matchesCategory =
+        selectedCategory === 'All' ||
+        (l.category && l.category.toLowerCase().includes(selectedCategory.toLowerCase()));
+      const q = searchQuery.trim().toLowerCase();
+      const matchesSearch =
+        !q ||
+        (l.title_en && l.title_en.toLowerCase().includes(q)) ||
+        (l.title_mr && l.title_mr.includes(q)) ||
+        (l.title_hi && l.title_hi.includes(q));
+      return matchesLevel && matchesCategory && matchesSearch;
+    });
+  }, [lessons, activeLevel, selectedCategory, searchQuery]);
 
   const handleOpenLesson = (lesson) => {
     setSelectedLesson(lesson);
@@ -115,9 +154,37 @@ export default function LearnScreen() {
       setCompletedIds(updated);
       try {
         await AsyncStorage.setItem(COMPLETED_LESSONS_KEY, JSON.stringify(updated));
-        await api.post('/progress/complete-lesson', { lessonId }).catch(() => {});
+        await api.post(`/lessons/${lessonId}/complete`).catch(() => {});
+        if (activeLevel === 1) completeTask(1, 'learn_l1');
+        if (activeLevel === 2) completeTask(2, 'learn_l2');
+        if (activeLevel === 3) completeTask(3, 'learn_l3');
       } catch (e) {}
     }
+  };
+
+  // Helper to extract lesson words array safely
+  const getLessonWords = (lesson) => {
+    if (!lesson) return [];
+    if (Array.isArray(lesson.content)) return lesson.content;
+    if (Array.isArray(lesson.vocabulary)) return lesson.vocabulary;
+    if (Array.isArray(lesson.words)) return lesson.words;
+    return [];
+  };
+
+  // Helper to extract dialogue array safely
+  const getLessonDialogues = (lesson) => {
+    if (!lesson) return [];
+    if (Array.isArray(lesson.dialogue)) return lesson.dialogue;
+    if (Array.isArray(lesson.dialogues)) return lesson.dialogues;
+    return [];
+  };
+
+  // Helper to extract quiz array safely
+  const getLessonQuizzes = (lesson) => {
+    if (!lesson) return [];
+    if (Array.isArray(lesson.quiz)) return lesson.quiz;
+    if (Array.isArray(lesson.quizzes)) return lesson.quizzes;
+    return [];
   };
 
   return (
@@ -211,6 +278,7 @@ export default function LearnScreen() {
           ) : (
             filteredLessons.map((lesson, idx) => {
               const isDone = completedIds.includes(lesson.id);
+              const wordsCount = getLessonWords(lesson).length;
               return (
                 <TouchableOpacity
                   key={lesson.id || idx}
@@ -229,7 +297,7 @@ export default function LearnScreen() {
                   <View style={styles.lessonInfoCol}>
                     <Text style={styles.lessonTitleEn}>{lesson.title_en}</Text>
                     <Text style={styles.lessonTitleLoc}>
-                      {language === 'mr' ? lesson.title_mr : language === 'hi' ? lesson.title_hi : lesson.title_mr}
+                      {language === 'mr' ? lesson.title_mr : language === 'hi' ? (lesson.title_hi || lesson.title_mr) : lesson.title_mr}
                     </Text>
                     <View style={styles.lessonMetaRow}>
                       <View style={styles.metaTag}>
@@ -237,7 +305,7 @@ export default function LearnScreen() {
                       </View>
                       <Text style={styles.metaDot}>•</Text>
                       <Text style={styles.metaDetailText}>
-                        {lesson.vocabulary ? `${lesson.vocabulary.length} words` : '5 words'}
+                        {wordsCount > 0 ? `${wordsCount} words` : 'Interactive'}
                       </Text>
                     </View>
                   </View>
@@ -274,7 +342,7 @@ export default function LearnScreen() {
                   {selectedLesson.title_en}
                 </Text>
                 <Text style={styles.modalLessonSub} numberOfLines={1}>
-                  {language === 'mr' ? selectedLesson.title_mr : selectedLesson.title_hi || selectedLesson.title_mr}
+                  {language === 'mr' ? selectedLesson.title_mr : (selectedLesson.title_hi || selectedLesson.title_mr)}
                 </Text>
               </View>
 
@@ -294,7 +362,8 @@ export default function LearnScreen() {
             <View style={styles.modalTabsRow}>
               {[
                 { key: 'vocab', label: language === 'mr' ? 'शब्द' : 'Words', icon: Sparkles },
-                { key: 'flashcards', label: language === 'mr' ? 'फ्लॅशकार्ड' : 'Cards', icon: Layers },
+                { key: 'dialogue', label: language === 'mr' ? 'संभाषण' : 'Dialogue', icon: MessageSquare },
+                { key: 'flashcards', label: language === 'mr' ? 'कार्ड' : 'Cards', icon: Layers },
                 { key: 'grammar', label: language === 'mr' ? 'नियम' : 'Rules', icon: Lightbulb },
                 { key: 'quiz', label: language === 'mr' ? 'क्विझ' : 'Quiz', icon: Award },
               ].map(tItem => {
@@ -315,46 +384,81 @@ export default function LearnScreen() {
               })}
             </View>
 
-            {/* Tab 1: Vocabulary List */}
+            {/* Tab 1: Vocabulary Words */}
             {activeTab === 'vocab' && (
               <ScrollView contentContainerStyle={styles.modalScrollContent}>
-                {(selectedLesson.vocabulary || [
-                  { en: 'Hello', mr: 'नमस्कार', hi: 'नमस्ते', pronunciation: 'हॅलो', example: 'Hello, how are you?' },
-                  { en: 'Good morning', mr: 'शुभ सकाळ', hi: 'सुप्रभात', pronunciation: 'गुड मॉर्निंग', example: 'Good morning, sir.' },
-                  { en: 'Thank you', mr: 'धन्यवाद', hi: 'धन्यवाद', pronunciation: 'थँक यू', example: 'Thank you very much.' },
-                  { en: 'Please', mr: 'कृपया', hi: 'कृपया', pronunciation: 'प्लीज', example: 'Please help me.' },
-                ]).map((item, idx) => (
-                  <View key={idx} style={styles.vocabDetailCard}>
-                    <View style={styles.vocabDetailTop}>
-                      <View style={styles.vocabTextCol}>
-                        <Text style={styles.vocabEnWord}>{item.en || item.word}</Text>
-                        <Text style={styles.vocabPronunciation}>({item.pronunciation || 'उच्चार'})</Text>
-                        <Text style={styles.vocabLocMeaning}>
-                          {language === 'mr' ? item.mr || item.marathi : language === 'hi' ? item.hi || item.hindi : item.mr}
-                        </Text>
+                {getLessonWords(selectedLesson).map((item, idx) => {
+                  const enWord = item.en || item.word || item.english || '';
+                  const pron = item.pron || item.pronunciation || '';
+                  const locWord = language === 'hi' ? (item.hi || item.mr || item.marathi) : (item.mr || item.marathi || item.hi);
+                  const example = item.example_en || item.example || (item.examples?.[0]?.english) || '';
+
+                  return (
+                    <View key={idx} style={styles.vocabDetailCard}>
+                      <View style={styles.vocabDetailTop}>
+                        <View style={styles.vocabTextCol}>
+                          <Text style={styles.vocabEnWord}>{enWord}</Text>
+                          {pron ? <Text style={styles.vocabPronunciation}>({pron})</Text> : null}
+                          <Text style={styles.vocabLocMeaning}>{locWord}</Text>
+                        </View>
+                        <AudioButton text={enWord} size={42} />
                       </View>
-                      <AudioButton text={item.en || item.word} size={42} />
+                      {example ? (
+                        <View style={styles.vocabExampleBox}>
+                          <Text style={styles.vocabExampleLabel}>{language === 'mr' ? 'उदा:' : 'Ex:'}</Text>
+                          <Text style={styles.vocabExampleText}>{example}</Text>
+                        </View>
+                      ) : null}
                     </View>
-                    {item.example && (
-                      <View style={styles.vocabExampleBox}>
-                        <Text style={styles.vocabExampleLabel}>{language === 'mr' ? 'उदा:' : 'Ex:'}</Text>
-                        <Text style={styles.vocabExampleText}>{item.example}</Text>
-                      </View>
-                    )}
-                  </View>
-                ))}
+                  );
+                })}
               </ScrollView>
             )}
 
-            {/* Tab 2: Flashcards */}
+            {/* Tab 2: Dialogue Conversation */}
+            {activeTab === 'dialogue' && (
+              <ScrollView contentContainerStyle={styles.modalScrollContent}>
+                {getLessonDialogues(selectedLesson).length === 0 ? (
+                  <View style={styles.emptyCard}>
+                    <MessageSquare size={32} color={COLORS.textMuted} />
+                    <Text style={styles.emptyText}>या धड्यासाठी संभाषण उपलब्ध नाही.</Text>
+                  </View>
+                ) : (
+                  getLessonDialogues(selectedLesson).map((d, dIdx) => (
+                    <View key={dIdx} style={styles.dialogueBubble}>
+                      <View style={styles.dialogueTopRow}>
+                        <Text style={styles.dialogueSpeaker}>{d.speaker || 'Speaker'}:</Text>
+                        <AudioButton text={d.text_en || d.english || ''} size={30} />
+                      </View>
+                      <Text style={styles.dialogueTextEn}>{d.text_en || d.english}</Text>
+                      {d.pron ? <Text style={styles.dialoguePron}>({d.pron})</Text> : null}
+                      <Text style={styles.dialogueTextLoc}>
+                        {language === 'hi' ? (d.text_hi || d.text_mr) : (d.text_mr || d.text_hi)}
+                      </Text>
+                    </View>
+                  ))
+                )}
+              </ScrollView>
+            )}
+
+            {/* Tab 3: Flashcards */}
             {activeTab === 'flashcards' && (
               <View style={styles.flashcardWrapper}>
                 {(() => {
-                  const vocabList = selectedLesson.vocabulary || [
-                    { en: 'Hello', mr: 'नमस्कार', pronunciation: 'हॅलो', example: 'Hello, friend!' },
-                    { en: 'Thank you', mr: 'धन्यवाद', pronunciation: 'थँक यू', example: 'Thank you for your help.' },
-                  ];
+                  const vocabList = getLessonWords(selectedLesson);
+                  if (vocabList.length === 0) {
+                    return (
+                      <View style={styles.emptyCard}>
+                        <Text style={styles.emptyText}>कार्ड्स उपलब्ध नाहीत.</Text>
+                      </View>
+                    );
+                  }
                   const card = vocabList[flashcardIdx] || vocabList[0];
+                  const enWord = card.en || card.word || card.english || '';
+                  const locWord = language === 'hi' ? (card.hi || card.mr) : (card.mr || card.marathi || card.hi);
+                  const pron = card.pron || card.pronunciation || '';
+                  const example = card.example_en || card.example || '';
+
                   return (
                     <View style={styles.flashcardCenter}>
                       <TouchableOpacity
@@ -367,21 +471,21 @@ export default function LearnScreen() {
                             <Text style={styles.flashcardHint}>
                               {language === 'mr' ? '👆 अर्थ पाहण्यासाठी कार्डवर टॅप करा' : '👆 Tap card to flip'}
                             </Text>
-                            <Text style={styles.flashcardMainText}>{card.en || card.word}</Text>
-                            <Text style={styles.flashcardSubText}>({card.pronunciation || ''})</Text>
-                            <AudioButton text={card.en || card.word} size={44} />
+                            <Text style={styles.flashcardMainText}>{enWord}</Text>
+                            {pron ? <Text style={styles.flashcardSubText}>({pron})</Text> : null}
+                            <View style={{ marginTop: 12 }}>
+                              <AudioButton text={enWord} size={44} />
+                            </View>
                           </View>
                         ) : (
                           <View style={[styles.flashcardInner, styles.flashcardInnerFlipped]}>
                             <Text style={styles.flashcardHint}>
-                              {language === 'mr' ? 'मराठी अर्थ' : 'Meaning'}
+                              {language === 'mr' ? 'मराठी / हिंदी अर्थ' : 'Meaning'}
                             </Text>
-                            <Text style={styles.flashcardMeaningText}>
-                              {language === 'mr' ? card.mr || card.marathi : card.hi || card.mr}
-                            </Text>
-                            {card.example && (
-                              <Text style={styles.flashcardExampleText}>"{card.example}"</Text>
-                            )}
+                            <Text style={styles.flashcardMeaningText}>{locWord}</Text>
+                            {example ? (
+                              <Text style={styles.flashcardExampleText}>"{example}"</Text>
+                            ) : null}
                           </View>
                         )}
                       </TouchableOpacity>
@@ -422,47 +526,56 @@ export default function LearnScreen() {
               </View>
             )}
 
-            {/* Tab 3: Grammar Tips */}
+            {/* Tab 4: Grammar Tips */}
             {activeTab === 'grammar' && (
               <ScrollView contentContainerStyle={styles.modalScrollContent}>
-                <View style={styles.grammarBox}>
-                  <Lightbulb size={24} color={COLORS.accentAmberDark} />
-                  <Text style={styles.grammarHeading}>
-                    {selectedLesson.grammar_rule_title || 'सोपे व्याकरण नियम (Grammar Rule)'}
-                  </Text>
-                  <Text style={styles.grammarBody}>
-                    {selectedLesson.grammar_rule_desc ||
-                      'वाक्य बनवताना नेहमी: कर्ता (Subject) + क्रियापद (Verb) + कर्म (Object) हा क्रम ठेवावा. उदा: I (Subject) + speak (Verb) + English (Object).'}
-                  </Text>
-                </View>
+                {(() => {
+                  const gTip = selectedLesson.grammar_tip;
+                  const gTitle = typeof gTip === 'object'
+                    ? (language === 'hi' ? (gTip?.title_hi || gTip?.title_mr) : (gTip?.title_mr || gTip?.title_en))
+                    : (selectedLesson.grammar_rule_title || 'सोपे व्याकरण नियम (Grammar Rules)');
+                  
+                  const gRule = typeof gTip === 'object'
+                    ? (language === 'hi' ? (gTip?.rule_hi || gTip?.rule_mr) : (gTip?.rule_mr || gTip?.rule_en))
+                    : (selectedLesson.grammar_rule_desc || selectedLesson.description_mr || 'वाक्यरचना समजून घ्या आणि सराव करा.');
+
+                  const gEx = typeof gTip === 'object' ? gTip?.example_en : null;
+
+                  return (
+                    <View style={styles.grammarBox}>
+                      <Lightbulb size={26} color={COLORS.accentAmberDark} />
+                      <Text style={styles.grammarHeading}>{gTitle || 'व्याकरण नियम'}</Text>
+                      <Text style={styles.grammarBody}>{gRule}</Text>
+                      {gEx ? (
+                        <View style={styles.grammarExBox}>
+                          <Text style={styles.grammarExLabel}>💡 उदाहरण (Example):</Text>
+                          <Text style={styles.grammarExText}>{gEx}</Text>
+                        </View>
+                      ) : null}
+                    </View>
+                  );
+                })()}
               </ScrollView>
             )}
 
-            {/* Tab 4: Quick Quiz */}
+            {/* Tab 5: Quick Quiz */}
             {activeTab === 'quiz' && (
               <ScrollView contentContainerStyle={styles.modalScrollContent}>
-                {(selectedLesson.quiz || [
-                  {
-                    q: "'Thank you' चा मराठी अर्थ काय?",
-                    options: ['धन्यवाद', 'नमस्कार', 'कृपया', 'माफ करा'],
-                    ans: 0,
-                  },
-                  {
-                    q: "योग्य इंग्रजी शब्द निवडा: 'पुस्तक'",
-                    options: ['Pen', 'Book', 'Water', 'Table'],
-                    ans: 1,
-                  },
-                ]).map((quizItem, qIdx) => {
+                {getLessonQuizzes(selectedLesson).map((quizItem, qIdx) => {
                   const userAns = quizAnswers[qIdx];
+                  const qText = quizItem.question_mr || quizItem.question_hi || quizItem.question_en || quizItem.q || quizItem.question || `प्रश्न ${qIdx + 1}`;
+                  const optionsList = Array.isArray(quizItem.options) ? quizItem.options : [];
+                  const correctIdx = quizItem.correct !== undefined ? quizItem.correct : (quizItem.ans !== undefined ? quizItem.ans : 0);
+
                   return (
                     <View key={qIdx} style={styles.quizItemCard}>
                       <Text style={styles.quizQText}>
-                        {qIdx + 1}. {quizItem.q || quizItem.question}
+                        {qIdx + 1}. {qText}
                       </Text>
                       <View style={styles.quizOptionsCol}>
-                        {quizItem.options.map((opt, optIdx) => {
+                        {optionsList.map((opt, optIdx) => {
                           const isSelected = userAns === optIdx;
-                          const isCorrect = optIdx === (quizItem.ans !== undefined ? quizItem.ans : quizItem.correct);
+                          const isCorrect = optIdx === correctIdx;
                           let optStyle = styles.quizOptBtn;
                           if (quizSubmitted) {
                             if (isCorrect) optStyle = [styles.quizOptBtn, styles.quizOptBtnCorrect];
@@ -485,6 +598,9 @@ export default function LearnScreen() {
                           );
                         })}
                       </View>
+                      {quizSubmitted && quizItem.explanation_mr ? (
+                        <Text style={styles.quizExpText}>💡 {quizItem.explanation_mr}</Text>
+                      ) : null}
                     </View>
                   );
                 })}
@@ -544,12 +660,12 @@ const styles = StyleSheet.create({
     color: COLORS.primaryDark,
   },
   progressCounterText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '700',
     color: COLORS.accentGreen,
   },
   mainTitle: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '900',
     color: COLORS.textMain,
     marginBottom: 4,
@@ -560,8 +676,7 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   levelRow: {
-    flexDirection: 'row',
-    marginBottom: 10,
+    marginVertical: SPACING.sm,
   },
   levelBtn: {
     paddingHorizontal: 16,
@@ -585,18 +700,20 @@ const styles = StyleSheet.create({
     color: COLORS.white,
   },
   categoryRow: {
-    flexDirection: 'row',
-    marginBottom: 12,
+    marginBottom: SPACING.md,
   },
   categoryBtn: {
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: RADIUS.md,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: COLORS.border,
     marginRight: 6,
   },
   categoryBtnActive: {
     backgroundColor: COLORS.secondaryLight,
+    borderColor: COLORS.secondary,
   },
   categoryBtnText: {
     fontSize: 11,
@@ -612,64 +729,48 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.white,
     borderRadius: RADIUS.md,
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    height: 44,
     borderWidth: 1,
     borderColor: COLORS.border,
-    marginBottom: SPACING.md,
     gap: 8,
-    ...SHADOWS.sm,
+    marginBottom: SPACING.md,
   },
   searchInput: {
     flex: 1,
     fontSize: 13,
     color: COLORS.textMain,
-    padding: 0,
   },
   lessonsList: {
     gap: 10,
-  },
-  emptyCard: {
-    backgroundColor: COLORS.white,
-    padding: 30,
-    borderRadius: RADIUS.md,
-    alignItems: 'center',
-    gap: 8,
-  },
-  emptyText: {
-    fontSize: 13,
-    color: COLORS.textMuted,
-    textAlign: 'center',
   },
   lessonCard: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: COLORS.white,
-    borderRadius: RADIUS.md,
+    borderRadius: RADIUS.lg,
     padding: SPACING.md,
-    borderLeftWidth: 4,
-    borderLeftColor: COLORS.primary,
     borderWidth: 1,
     borderColor: COLORS.border,
-    ...SHADOWS.sm,
     gap: 12,
+    ...SHADOWS.card,
   },
   lessonCardDone: {
-    borderLeftColor: COLORS.accentGreen,
+    borderColor: COLORS.accentGreenLight,
   },
   lessonNumCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: COLORS.primaryLight,
-    alignItems: 'center',
     justifyContent: 'center',
+    alignItems: 'center',
   },
   lessonNumCircleDone: {
     backgroundColor: COLORS.accentGreenLight,
   },
   lessonNumText: {
-    fontSize: 13,
-    fontWeight: '800',
+    fontSize: 14,
+    fontWeight: '900',
     color: COLORS.primaryDark,
   },
   lessonInfoCol: {
@@ -689,7 +790,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginTop: 4,
+    marginTop: 6,
   },
   metaTag: {
     backgroundColor: '#F1F5F9',
@@ -698,7 +799,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   metaTagText: {
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: '700',
     color: COLORS.textMuted,
   },
@@ -706,7 +807,17 @@ const styles = StyleSheet.create({
     color: COLORS.textLight,
   },
   metaDetailText: {
-    fontSize: 10,
+    fontSize: 11,
+    color: COLORS.textLight,
+  },
+  emptyCard: {
+    padding: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  emptyText: {
+    fontSize: 13,
     color: COLORS.textMuted,
   },
   modalContainer: {
@@ -716,21 +827,18 @@ const styles = StyleSheet.create({
   modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: SPACING.md,
     paddingVertical: 12,
     backgroundColor: COLORS.white,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
+    gap: 10,
   },
   modalCloseBtn: {
     padding: 6,
-    borderRadius: RADIUS.full,
-    backgroundColor: '#F1F5F9',
   },
   modalTitleCol: {
     flex: 1,
-    paddingHorizontal: 10,
   },
   modalLessonTitle: {
     fontSize: 15,
@@ -744,30 +852,31 @@ const styles = StyleSheet.create({
   modalDoneBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
     backgroundColor: COLORS.accentGreen,
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: RADIUS.full,
+    borderRadius: RADIUS.md,
+    gap: 4,
   },
   modalDoneBtnText: {
+    color: COLORS.white,
     fontSize: 12,
     fontWeight: '800',
-    color: COLORS.white,
   },
   modalTabsRow: {
     flexDirection: 'row',
     backgroundColor: COLORS.white,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
+    paddingHorizontal: SPACING.sm,
   },
   modalTabBtn: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
     paddingVertical: 10,
+    gap: 4,
     borderBottomWidth: 2,
     borderBottomColor: 'transparent',
   },
@@ -785,40 +894,39 @@ const styles = StyleSheet.create({
   },
   modalScrollContent: {
     padding: SPACING.md,
+    paddingBottom: 40,
     gap: 10,
-    paddingBottom: 60,
   },
   vocabDetailCard: {
     backgroundColor: COLORS.white,
-    borderRadius: RADIUS.md,
+    borderRadius: RADIUS.lg,
     padding: SPACING.md,
     borderWidth: 1,
     borderColor: COLORS.border,
-    ...SHADOWS.sm,
+    ...SHADOWS.card,
   },
   vocabDetailTop: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
   },
   vocabTextCol: {
     flex: 1,
   },
   vocabEnWord: {
-    fontSize: 17,
-    fontWeight: '800',
+    fontSize: 18,
+    fontWeight: '900',
     color: COLORS.textMain,
   },
   vocabPronunciation: {
     fontSize: 12,
-    color: COLORS.primary,
-    fontWeight: '700',
-    marginTop: 1,
+    color: COLORS.textMuted,
+    marginVertical: 2,
   },
   vocabLocMeaning: {
-    fontSize: 13,
-    color: COLORS.textMuted,
-    marginTop: 2,
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.secondary,
   },
   vocabExampleBox: {
     marginTop: 8,
@@ -830,68 +938,107 @@ const styles = StyleSheet.create({
   },
   vocabExampleLabel: {
     fontSize: 11,
-    fontWeight: '800',
-    color: COLORS.secondary,
+    fontWeight: '700',
+    color: COLORS.primaryDark,
   },
   vocabExampleText: {
     fontSize: 12,
-    color: COLORS.textMain,
+    color: COLORS.textMuted,
+    fontStyle: 'italic',
     flex: 1,
+  },
+  dialogueBubble: {
+    backgroundColor: COLORS.white,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    marginBottom: 8,
+  },
+  dialogueTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  dialogueSpeaker: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: COLORS.primary,
+  },
+  dialogueTextEn: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: COLORS.textMain,
+  },
+  dialoguePron: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+    marginVertical: 2,
+  },
+  dialogueTextLoc: {
+    fontSize: 13,
+    color: COLORS.textMuted,
+    marginTop: 4,
   },
   flashcardWrapper: {
     flex: 1,
-    padding: SPACING.md,
+    padding: SPACING.lg,
     justifyContent: 'center',
+    alignItems: 'center',
   },
   flashcardCenter: {
+    width: '100%',
     alignItems: 'center',
-    gap: 16,
   },
   flashcardBox: {
     width: '100%',
-    minHeight: 220,
+    minHeight: 240,
     backgroundColor: COLORS.white,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.lg,
-    borderWidth: 1.5,
-    borderColor: COLORS.borderAmber,
-    ...SHADOWS.card,
+    borderRadius: RADIUS.xl,
+    padding: SPACING.xl,
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 2,
+    borderColor: COLORS.primaryLight,
+    ...SHADOWS.card,
   },
   flashcardInner: {
     alignItems: 'center',
-    gap: 8,
   },
   flashcardInnerFlipped: {
-    backgroundColor: COLORS.secondaryLight,
+    backgroundColor: '#F8FAFC',
+    borderRadius: RADIUS.lg,
+    padding: SPACING.md,
     width: '100%',
-    padding: 20,
-    borderRadius: RADIUS.md,
   },
   flashcardHint: {
     fontSize: 11,
     color: COLORS.textLight,
+    marginBottom: 12,
   },
   flashcardMainText: {
     fontSize: 26,
     fontWeight: '900',
     color: COLORS.textMain,
+    marginBottom: 4,
   },
   flashcardSubText: {
     fontSize: 14,
-    color: COLORS.primaryDark,
-    fontWeight: '700',
+    color: COLORS.textMuted,
+    marginBottom: 8,
   },
   flashcardMeaningText: {
     fontSize: 22,
     fontWeight: '800',
     color: COLORS.secondary,
+    textAlign: 'center',
+    marginBottom: 8,
   },
   flashcardExampleText: {
     fontSize: 13,
-    color: COLORS.textMain,
     fontStyle: 'italic',
+    color: COLORS.textMuted,
     textAlign: 'center',
   },
   flashcardControls: {
@@ -899,23 +1046,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     width: '100%',
+    marginTop: 20,
   },
   fcBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
     backgroundColor: COLORS.white,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     borderRadius: RADIUS.md,
     borderWidth: 1,
     borderColor: COLORS.border,
+    gap: 4,
   },
   fcBtnDisabled: {
-    opacity: 0.4,
+    opacity: 0.3,
   },
   fcBtnText: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '800',
     color: COLORS.primary,
   },
@@ -925,30 +1073,49 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
   },
   grammarBox: {
-    backgroundColor: COLORS.accentAmberLight,
+    backgroundColor: COLORS.white,
     borderRadius: RADIUS.lg,
     padding: SPACING.lg,
     borderWidth: 1,
-    borderColor: '#FDE68A',
-    gap: 8,
+    borderColor: COLORS.border,
+    gap: 10,
+    ...SHADOWS.card,
   },
   grammarHeading: {
     fontSize: 16,
-    fontWeight: '800',
-    color: COLORS.accentAmberDark,
+    fontWeight: '900',
+    color: COLORS.textMain,
   },
   grammarBody: {
+    fontSize: 14,
+    color: COLORS.textMuted,
+    lineHeight: 22,
+  },
+  grammarExBox: {
+    backgroundColor: COLORS.primaryLight,
+    padding: 10,
+    borderRadius: RADIUS.md,
+    marginTop: 8,
+  },
+  grammarExLabel: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: COLORS.primaryDark,
+  },
+  grammarExText: {
     fontSize: 13,
-    color: '#78350F',
-    lineHeight: 20,
+    color: COLORS.textMain,
+    fontWeight: '600',
+    marginTop: 2,
   },
   quizItemCard: {
     backgroundColor: COLORS.white,
-    borderRadius: RADIUS.md,
+    borderRadius: RADIUS.lg,
     padding: SPACING.md,
     borderWidth: 1,
     borderColor: COLORS.border,
-    gap: 8,
+    gap: 10,
+    ...SHADOWS.card,
   },
   quizQText: {
     fontSize: 14,
@@ -959,9 +1126,8 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   quizOptBtn: {
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: RADIUS.sm,
+    padding: 10,
+    borderRadius: RADIUS.md,
     backgroundColor: '#F8FAFC',
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -975,24 +1141,29 @@ const styles = StyleSheet.create({
     borderColor: COLORS.accentGreen,
   },
   quizOptBtnWrong: {
-    backgroundColor: COLORS.accentRedLight,
-    borderColor: COLORS.accentRed,
+    backgroundColor: '#FEE2E2',
+    borderColor: '#EF4444',
   },
   quizOptText: {
     fontSize: 13,
     fontWeight: '700',
     color: COLORS.textMain,
   },
+  quizExpText: {
+    fontSize: 11,
+    color: COLORS.accentGreen,
+    fontWeight: '700',
+  },
   quizSubmitBtn: {
     backgroundColor: COLORS.primary,
-    paddingVertical: 14,
     borderRadius: RADIUS.md,
+    paddingVertical: 12,
     alignItems: 'center',
     marginTop: 10,
   },
   quizSubmitBtnText: {
+    color: COLORS.white,
     fontSize: 14,
     fontWeight: '800',
-    color: COLORS.white,
   },
 });

@@ -23,79 +23,40 @@ import {
   Lock,
   ArrowRight,
   TrendingUp,
+  Circle,
 } from 'lucide-react-native';
 import { useApp } from '../context/AppContext';
+import { useProgress } from '../context/ProgressContext';
+import { useAuth } from '../context/AuthContext';
 import { COLORS, SPACING, RADIUS, SHADOWS } from '../constants/theme';
 import Header from '../components/Header';
 import AudioButton from '../components/AudioButton';
+import TrialBanner from '../components/TrialBanner';
 
 export default function HomeScreen() {
   const navigation = useNavigation();
-  const { t, language, userLevel, streak, todaySnapshot, refreshTodaySnapshot, isLoading } = useApp();
-  const [expandedLevel, setExpandedLevel] = useState(1);
+  const { t, language, streak, todaySnapshot, refreshTodaySnapshot, isLoading } = useApp();
+  const { LEVELS, isLevelComplete, isLevelUnlocked, isTaskCompleted, completeTask, currentLevel } = useProgress();
+  const { user } = useAuth();
+  const [expandedLevel, setExpandedLevel] = useState(currentLevel || 1);
 
   const getGreeting = () => {
     const hour = new Date().getHours();
+    const namePrefix = user?.name ? `${user.name}, ` : '';
     if (hour < 12) {
-      return language === 'mr' ? 'शुभ सकाळ! 🌅' : language === 'hi' ? 'सुप्रभात! 🌅' : 'Good Morning! 🌅';
+      return language === 'mr' ? `शुभ सकाळ! 🌅 ${namePrefix}` : language === 'hi' ? `सुप्रभात! 🌅 ${namePrefix}` : `Good Morning! 🌅 ${namePrefix}`;
     }
     if (hour < 17) {
-      return language === 'mr' ? 'शुभ दुपार! ☀️' : language === 'hi' ? 'शुभ दोपहर! ☀️' : 'Good Afternoon! ☀️';
+      return language === 'mr' ? `शुभ दुपार! ☀️ ${namePrefix}` : language === 'hi' ? `शुभ दोपहर! ☀️ ${namePrefix}` : `Good Afternoon! ☀️ ${namePrefix}`;
     }
-    return language === 'mr' ? 'शुभ संध्याकाळ! 🌙' : language === 'hi' ? 'शुभ संध्या! 🌙' : 'Good Evening! 🌙';
+    return language === 'mr' ? `शुभ संध्याकाळ! 🌙 ${namePrefix}` : language === 'hi' ? `शुभ संध्या! 🌙 ${namePrefix}` : `Good Evening! 🌙 ${namePrefix}`;
   };
-
-  const levels = [
-    {
-      id: 1,
-      name: language === 'mr' ? 'लेव्हल १: नवशिक्या (Beginner)' : 'Level 1: Beginner',
-      desc: language === 'mr' ? 'इंग्रजी मुळाक्षरे, मूलभूत शब्द आणि सोपे नियम' : 'Alphabet, Phonics & Everyday Basic Words',
-      completed: true,
-      tasks: 4,
-      totalTasks: 4,
-      color: COLORS.primary,
-    },
-    {
-      id: 2,
-      name: language === 'mr' ? 'लेव्हल २: क्रियापदे (Verbs & Tenses)' : 'Level 2: Verbs & Tenses',
-      desc: language === 'mr' ? '३००+ महत्त्वाची क्रियापदे (V1, V2, V3) व काळ' : 'Essential Verbs & Simple Tense Rules',
-      completed: false,
-      tasks: 3,
-      totalTasks: 5,
-      color: COLORS.secondary,
-    },
-    {
-      id: 3,
-      name: language === 'mr' ? 'लेव्हल ३: वाक्य रचना (Sentence Patterns)' : 'Level 3: Sentence Patterns',
-      desc: language === 'mr' ? 'I want, I have, Can you वाक्यरचना सराव' : 'Daily sentence templates & speaking structures',
-      completed: false,
-      tasks: 1,
-      totalTasks: 6,
-      color: COLORS.accentGreen,
-    },
-    {
-      id: 4,
-      name: language === 'mr' ? 'लेव्हल ४: दैनंदिन संभाषण (Daily Dialogues)' : 'Level 4: Dialogues',
-      desc: language === 'mr' ? 'दुकान, हॉटेल, प्रवास आणि ऑफिसमधील इंग्रजी' : 'Real life conversations & situations',
-      completed: false,
-      tasks: 0,
-      totalTasks: 5,
-      color: COLORS.accentPurple,
-    },
-    {
-      id: 5,
-      name: language === 'mr' ? 'लेव्हल ५: अस्खलित इंग्रजी (Fluency Master)' : 'Level 5: Fluency',
-      desc: language === 'mr' ? 'आत्मविश्वासाने आणि अडखळता इंग्रजी बोला' : 'Spontaneous English & AI debate practice',
-      completed: false,
-      tasks: 0,
-      totalTasks: 6,
-      color: COLORS.accentAmber,
-    },
-  ];
 
   return (
     <View style={styles.container}>
       <Header />
+      <TrialBanner />
+
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -165,13 +126,13 @@ export default function HomeScreen() {
               <View style={[styles.statIconBadge, { backgroundColor: COLORS.primaryLight }]}>
                 <BookOpen size={16} color={COLORS.primary} />
               </View>
-              <Text style={styles.statValue}>45</Text>
+              <Text style={styles.statValue}>1500+</Text>
             </View>
             <Text style={styles.statLabel}>{language === 'mr' ? 'एकूण शब्द (Words)' : 'Total Words'}</Text>
             <View style={styles.statProgressBarBg}>
-              <View style={[styles.statProgressBarFill, { width: '45%', backgroundColor: COLORS.primary }]} />
+              <View style={[styles.statProgressBarFill, { width: '75%', backgroundColor: COLORS.primary }]} />
             </View>
-            <Text style={styles.statSubtext}>{language === 'mr' ? 'ध्येय: ५०० शब्द' : 'Goal: 500 Words'}</Text>
+            <Text style={styles.statSubtext}>{language === 'mr' ? 'Neon DB वरून सक्रिय' : 'Active from Database'}</Text>
           </View>
 
           {/* Speaking Stat */}
@@ -180,13 +141,13 @@ export default function HomeScreen() {
               <View style={[styles.statIconBadge, { backgroundColor: COLORS.secondaryLight }]}>
                 <Mic size={16} color={COLORS.secondary} />
               </View>
-              <Text style={styles.statValue}>12</Text>
+              <Text style={styles.statValue}>6 Scenarios</Text>
             </View>
             <Text style={styles.statLabel}>{language === 'mr' ? 'संभाषणे (Speaking)' : 'Speaking'}</Text>
             <View style={styles.statProgressBarBg}>
-              <View style={[styles.statProgressBarFill, { width: '40%', backgroundColor: COLORS.secondary }]} />
+              <View style={[styles.statProgressBarFill, { width: '60%', backgroundColor: COLORS.secondary }]} />
             </View>
-            <Text style={styles.statSubtext}>{language === 'mr' ? 'ध्येय: ३० संभाषणे' : 'Goal: 30 Sessions'}</Text>
+            <Text style={styles.statSubtext}>{language === 'mr' ? 'AI संभाषण उपलब्ध' : 'AI Voice Partner'}</Text>
           </View>
 
           {/* Accuracy Stat */}
@@ -195,11 +156,11 @@ export default function HomeScreen() {
               <View style={[styles.statIconBadge, { backgroundColor: COLORS.accentGreenLight }]}>
                 <Award size={16} color={COLORS.accentGreen} />
               </View>
-              <Text style={styles.statValue}>88%</Text>
+              <Text style={styles.statValue}>92%</Text>
             </View>
             <Text style={styles.statLabel}>{language === 'mr' ? 'अचूकता (Accuracy)' : 'Accuracy'}</Text>
             <View style={styles.statProgressBarBg}>
-              <View style={[styles.statProgressBarFill, { width: '88%', backgroundColor: COLORS.accentGreen }]} />
+              <View style={[styles.statProgressBarFill, { width: '92%', backgroundColor: COLORS.accentGreen }]} />
             </View>
             <Text style={styles.statSubtext}>{language === 'mr' ? 'क्विझ अचूकता' : 'Quiz Accuracy'}</Text>
           </View>
@@ -210,13 +171,13 @@ export default function HomeScreen() {
               <View style={[styles.statIconBadge, { backgroundColor: COLORS.accentPurpleLight }]}>
                 <Target size={16} color={COLORS.accentPurple} />
               </View>
-              <Text style={styles.statValue}>5</Text>
+              <Text style={styles.statValue}>20</Text>
             </View>
-            <Text style={styles.statLabel}>{language === 'mr' ? 'पूर्ण धडे (Lessons)' : 'Lessons'}</Text>
+            <Text style={styles.statLabel}>{language === 'mr' ? 'धडे (Lessons)' : 'Lessons'}</Text>
             <View style={styles.statProgressBarBg}>
-              <View style={[styles.statProgressBarFill, { width: '25%', backgroundColor: COLORS.accentPurple }]} />
+              <View style={[styles.statProgressBarFill, { width: '50%', backgroundColor: COLORS.accentPurple }]} />
             </View>
-            <Text style={styles.statSubtext}>{language === 'mr' ? 'ध्येय: ५० धडे' : 'Goal: 50 Lessons'}</Text>
+            <Text style={styles.statSubtext}>{language === 'mr' ? 'लेव्हल १ ते ५' : 'Levels 1 to 5'}</Text>
           </View>
         </View>
 
@@ -249,7 +210,7 @@ export default function HomeScreen() {
               <Sparkles size={20} color={COLORS.secondary} />
             </View>
             <Text style={styles.moduleTitle}>{language === 'mr' ? 'शब्दसंग्रह (Vocab)' : 'Vocabulary'}</Text>
-            <Text style={styles.moduleSub}>{language === 'mr' ? '५००+ रोजचे शब्द' : '500+ Daily Words'}</Text>
+            <Text style={styles.moduleSub}>{language === 'mr' ? '१५००+ रोजचे शब्द' : '1500+ Daily Words'}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -321,47 +282,69 @@ export default function HomeScreen() {
           ))}
         </View>
 
-        {/* Learning Journey Roadmap */}
+        {/* Learning Journey Roadmap with Real Level Tasks */}
         <View style={styles.sectionHeaderRow}>
           <View>
-            <Text style={styles.sectionTitle}>🗺️ {language === 'mr' ? 'इंग्रजी शिकण्याचा मार्ग' : 'Your Learning Journey'}</Text>
+            <Text style={styles.sectionTitle}>🗺️ {language === 'mr' ? 'इंग्रजी शिकण्याचा मार्ग (Level Progression)' : 'Your Learning Journey'}</Text>
             <Text style={styles.sectionSubtitle}>
-              {language === 'mr' ? 'एक एक लेव्हल पूर्ण करून पुढील लेव्हल अनलॉक करा' : 'Complete levels to unlock next'}
+              {language === 'mr' ? 'प्रत्येक लेव्हलचे टास्क पूर्ण करून पुढील लेव्हल अनलॉक करा' : 'Complete tasks to unlock each level'}
             </Text>
           </View>
         </View>
 
         <View style={styles.journeyList}>
-          {levels.map((lvl) => {
+          {LEVELS.map((lvl) => {
             const isExpanded = expandedLevel === lvl.id;
+            const completed = isLevelComplete(lvl.id);
+            const unlocked = isLevelUnlocked(lvl.id);
+            const doneTasks = lvl.tasks.filter(t => isTaskCompleted(lvl.id, t.key)).length;
+
             return (
-              <TouchableOpacity
+              <View
                 key={lvl.id}
                 style={[
                   styles.journeyCard,
-                  { borderLeftColor: lvl.completed ? COLORS.accentGreen : lvl.color },
+                  { borderLeftColor: completed ? COLORS.accentGreen : (unlocked ? lvl.color : '#cbd5e1') },
+                  !unlocked && styles.journeyCardLocked
                 ]}
-                onPress={() => setExpandedLevel(isExpanded ? null : lvl.id)}
-                activeOpacity={0.8}
               >
-                <View style={styles.journeyHeaderRow}>
-                  <View style={[styles.journeyLevelBadge, { backgroundColor: lvl.completed ? COLORS.accentGreenLight : `${lvl.color}20` }]}>
-                    {lvl.completed ? (
+                <TouchableOpacity
+                  style={styles.journeyHeaderRow}
+                  onPress={() => {
+                    if (unlocked) setExpandedLevel(isExpanded ? null : lvl.id);
+                  }}
+                  activeOpacity={unlocked ? 0.7 : 1}
+                >
+                  <View style={[
+                    styles.journeyLevelBadge,
+                    { backgroundColor: completed ? COLORS.accentGreenLight : (unlocked ? `${lvl.color}20` : '#f1f5f9') }
+                  ]}>
+                    {completed ? (
                       <CheckCircle2 size={16} color={COLORS.accentGreen} />
+                    ) : !unlocked ? (
+                      <Lock size={14} color="#94a3b8" />
                     ) : (
                       <Text style={[styles.journeyLevelBadgeText, { color: lvl.color }]}>L{lvl.id}</Text>
                     )}
                   </View>
+
                   <View style={styles.journeyTitleCol}>
-                    <Text style={styles.journeyTitle}>{lvl.name}</Text>
-                    <Text style={styles.journeyDesc}>{lvl.desc}</Text>
+                    <Text style={[styles.journeyTitle, !unlocked && styles.journeyTitleLocked]}>
+                      {language === 'mr' ? lvl.nameMr : lvl.name}
+                    </Text>
+                    <Text style={styles.journeyDesc}>
+                      {doneTasks}/{lvl.tasks.length} {language === 'mr' ? 'टास्क पूर्ण' : 'tasks done'}
+                    </Text>
                   </View>
-                  <ChevronRight
-                    size={18}
-                    color={COLORS.textMuted}
-                    style={{ transform: [{ rotate: isExpanded ? '90deg' : '0deg' }] }}
-                  />
-                </View>
+
+                  {unlocked && (
+                    <ChevronRight
+                      size={18}
+                      color={COLORS.textMuted}
+                      style={{ transform: [{ rotate: isExpanded ? '90deg' : '0deg' }] }}
+                    />
+                  )}
+                </TouchableOpacity>
 
                 {/* Progress bar */}
                 <View style={styles.journeyProgressRow}>
@@ -370,17 +353,51 @@ export default function HomeScreen() {
                       style={[
                         styles.journeyProgressBarFill,
                         {
-                          width: `${(lvl.tasks / lvl.totalTasks) * 100}%`,
-                          backgroundColor: lvl.completed ? COLORS.accentGreen : lvl.color,
+                          width: `${(doneTasks / lvl.tasks.length) * 100}%`,
+                          backgroundColor: completed ? COLORS.accentGreen : (unlocked ? lvl.color : '#cbd5e1'),
                         },
                       ]}
                     />
                   </View>
                   <Text style={styles.journeyProgressText}>
-                    {lvl.tasks}/{lvl.totalTasks} {language === 'mr' ? 'भाग पूर्ण' : 'completed'}
+                    {doneTasks}/{lvl.tasks.length}
                   </Text>
                 </View>
-              </TouchableOpacity>
+
+                {/* Expanded Tasks List */}
+                {isExpanded && unlocked && (
+                  <View style={styles.tasksBox}>
+                    {lvl.tasks.map((task) => {
+                      const isDone = isTaskCompleted(lvl.id, task.key);
+                      return (
+                        <TouchableOpacity
+                          key={task.key}
+                          style={styles.taskItemRow}
+                          onPress={() => {
+                            if (task.screen) navigation.navigate(task.screen);
+                          }}
+                          activeOpacity={0.7}
+                        >
+                          <TouchableOpacity
+                            onPress={() => completeTask(lvl.id, task.key)}
+                            style={styles.checkWrap}
+                          >
+                            {isDone ? (
+                              <CheckCircle2 size={18} color="#10b981" />
+                            ) : (
+                              <Circle size={18} color="#94a3b8" />
+                            )}
+                          </TouchableOpacity>
+                          <Text style={[styles.taskItemText, isDone && styles.taskItemTextDone]}>
+                            {language === 'mr' ? task.labelMr : task.label}
+                          </Text>
+                          <ChevronRight size={14} color="#94a3b8" />
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                )}
+              </View>
             );
           })}
         </View>
@@ -396,7 +413,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: SPACING.md,
-    paddingBottom: 120, // ample bottom padding so it never hides under bottom navigation
+    paddingBottom: 120,
   },
   heroCard: {
     backgroundColor: COLORS.white,
@@ -455,49 +472,48 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: COLORS.textMuted,
     lineHeight: 18,
-    marginBottom: 14,
+    marginBottom: 16,
   },
   heroActionsRow: {
     flexDirection: 'row',
     gap: 10,
   },
   heroPrimaryBtn: {
-    flex: 1.2,
+    flex: 1.4,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
     backgroundColor: COLORS.primary,
     paddingVertical: 12,
-    paddingHorizontal: 14,
     borderRadius: RADIUS.md,
-    ...SHADOWS.sm,
+    gap: 6,
+    ...SHADOWS.button,
   },
   heroPrimaryBtnText: {
+    color: COLORS.white,
     fontSize: 13,
     fontWeight: '800',
-    color: COLORS.white,
   },
   heroSecondaryBtn: {
-    flex: 0.8,
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
     backgroundColor: COLORS.secondaryLight,
     paddingVertical: 12,
-    paddingHorizontal: 10,
     borderRadius: RADIUS.md,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: COLORS.secondary,
   },
   heroSecondaryBtnText: {
+    color: COLORS.secondary,
     fontSize: 13,
     fontWeight: '800',
-    color: COLORS.secondary,
   },
   statsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
     gap: 10,
     marginBottom: SPACING.md,
   },
@@ -505,57 +521,56 @@ const styles = StyleSheet.create({
     width: '48%',
     backgroundColor: COLORS.white,
     borderRadius: RADIUS.md,
-    padding: SPACING.md,
-    borderLeftWidth: 4,
+    padding: 12,
     borderWidth: 1,
     borderColor: COLORS.border,
-    ...SHADOWS.sm,
+    borderLeftWidth: 4,
+    ...SHADOWS.card,
   },
   statTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 4,
+    marginBottom: 6,
   },
   statIconBadge: {
     width: 28,
     height: 28,
-    borderRadius: RADIUS.sm,
-    alignItems: 'center',
+    borderRadius: 14,
     justifyContent: 'center',
+    alignItems: 'center',
   },
   statValue: {
-    fontSize: 18,
+    fontSize: 15,
     fontWeight: '900',
     color: COLORS.textMain,
   },
   statLabel: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
-    color: COLORS.textMain,
+    color: COLORS.textMuted,
     marginBottom: 6,
   },
   statProgressBarBg: {
     height: 4,
     backgroundColor: '#F1F5F9',
     borderRadius: 2,
-    overflow: 'hidden',
     marginBottom: 4,
+    overflow: 'hidden',
   },
   statProgressBarFill: {
     height: '100%',
     borderRadius: 2,
   },
   statSubtext: {
-    fontSize: 10,
-    color: COLORS.textMuted,
+    fontSize: 9,
+    color: COLORS.textLight,
   },
   sectionHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 8,
-    marginBottom: 10,
+    marginVertical: 12,
   },
   sectionTitle: {
     fontSize: 16,
@@ -565,17 +580,16 @@ const styles = StyleSheet.create({
   sectionSubtitle: {
     fontSize: 11,
     color: COLORS.textMuted,
-    marginTop: 1,
+    marginTop: 2,
   },
   sectionLinkText: {
     fontSize: 12,
-    fontWeight: '800',
+    fontWeight: '700',
     color: COLORS.primary,
   },
   modulesGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
     gap: 10,
     marginBottom: SPACING.md,
   },
@@ -583,29 +597,29 @@ const styles = StyleSheet.create({
     width: '48%',
     backgroundColor: COLORS.white,
     borderRadius: RADIUS.md,
-    padding: SPACING.md,
-    borderLeftWidth: 4,
+    padding: 12,
     borderWidth: 1,
     borderColor: COLORS.border,
-    ...SHADOWS.sm,
+    borderLeftWidth: 4,
+    ...SHADOWS.card,
   },
   moduleIconBadge: {
     width: 36,
     height: 36,
-    borderRadius: RADIUS.sm,
-    alignItems: 'center',
+    borderRadius: 18,
     justifyContent: 'center',
+    alignItems: 'center',
     marginBottom: 8,
   },
   moduleTitle: {
     fontSize: 13,
     fontWeight: '800',
     color: COLORS.textMain,
-    marginBottom: 2,
   },
   moduleSub: {
-    fontSize: 11,
+    fontSize: 10,
     color: COLORS.textMuted,
+    marginTop: 2,
   },
   wordsList: {
     gap: 8,
@@ -616,24 +630,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: COLORS.white,
     borderRadius: RADIUS.md,
-    padding: SPACING.md,
+    padding: 10,
     borderWidth: 1,
     borderColor: COLORS.border,
-    ...SHADOWS.sm,
     gap: 10,
+    ...SHADOWS.card,
   },
   wordNumCircle: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: COLORS.secondaryLight,
-    alignItems: 'center',
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: COLORS.primaryLight,
     justifyContent: 'center',
+    alignItems: 'center',
   },
   wordNumText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '800',
-    color: COLORS.secondary,
+    color: COLORS.primaryDark,
   },
   wordInfoCol: {
     flex: 1,
@@ -642,10 +656,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginBottom: 2,
   },
   wordEnText: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '800',
     color: COLORS.textMain,
   },
@@ -653,7 +666,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F1F5F9',
     paddingHorizontal: 6,
     paddingVertical: 1,
-    borderRadius: RADIUS.full,
+    borderRadius: 4,
   },
   wordTypePillText: {
     fontSize: 9,
@@ -664,6 +677,7 @@ const styles = StyleSheet.create({
   wordMeaningText: {
     fontSize: 12,
     color: COLORS.textMuted,
+    marginTop: 2,
   },
   journeyList: {
     gap: 10,
@@ -672,28 +686,31 @@ const styles = StyleSheet.create({
   journeyCard: {
     backgroundColor: COLORS.white,
     borderRadius: RADIUS.md,
-    padding: SPACING.md,
-    borderLeftWidth: 4,
+    padding: 12,
     borderWidth: 1,
     borderColor: COLORS.border,
-    ...SHADOWS.sm,
+    borderLeftWidth: 4,
+    ...SHADOWS.card,
+  },
+  journeyCardLocked: {
+    opacity: 0.65,
+    backgroundColor: '#f8fafc',
   },
   journeyHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    marginBottom: 8,
   },
   journeyLevelBadge: {
     width: 32,
     height: 32,
-    borderRadius: RADIUS.sm,
-    alignItems: 'center',
+    borderRadius: 16,
     justifyContent: 'center',
+    alignItems: 'center',
   },
   journeyLevelBadgeText: {
     fontSize: 12,
-    fontWeight: '900',
+    fontWeight: '800',
   },
   journeyTitleCol: {
     flex: 1,
@@ -702,6 +719,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '800',
     color: COLORS.textMain,
+  },
+  journeyTitleLocked: {
+    color: '#94a3b8',
   },
   journeyDesc: {
     fontSize: 11,
@@ -712,21 +732,48 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    marginTop: 10,
   },
   journeyProgressBarBg: {
     flex: 1,
-    height: 5,
+    height: 4,
     backgroundColor: '#F1F5F9',
-    borderRadius: 3,
+    borderRadius: 2,
     overflow: 'hidden',
   },
   journeyProgressBarFill: {
     height: '100%',
-    borderRadius: 3,
+    borderRadius: 2,
   },
   journeyProgressText: {
     fontSize: 10,
     fontWeight: '700',
     color: COLORS.textMuted,
   },
+  tasksBox: {
+    marginTop: 12,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#f1f5f9',
+    gap: 8,
+  },
+  taskItemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 4,
+  },
+  checkWrap: {
+    padding: 2,
+  },
+  taskItemText: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#334155',
+  },
+  taskItemTextDone: {
+    color: '#94a3b8',
+    textDecorationLine: 'line-through',
+  }
 });

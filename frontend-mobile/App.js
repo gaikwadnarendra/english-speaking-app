@@ -3,7 +3,11 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AppProvider } from './src/context/AppContext';
+import { AuthProvider } from './src/context/AuthContext';
+import { ProgressProvider } from './src/context/ProgressContext';
 import AppNavigator from './src/navigation/AppNavigator';
+import LoginModal from './src/components/LoginModal';
+import LevelUnlockModal from './src/components/LevelUnlockModal';
 
 class ErrorBoundary extends Component {
   constructor(props) {
@@ -44,10 +48,16 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <ErrorBoundary>
-        <AppProvider>
-          <StatusBar style="dark" backgroundColor="#FFFFFF" />
-          <AppNavigator />
-        </AppProvider>
+        <AuthProvider>
+          <ProgressProvider>
+            <AppProvider>
+              <StatusBar style="dark" backgroundColor="#FFFFFF" />
+              <AppNavigator />
+              <LoginModal />
+              <LevelUnlockModal />
+            </AppProvider>
+          </ProgressProvider>
+        </AuthProvider>
       </ErrorBoundary>
     </SafeAreaProvider>
   );
@@ -86,4 +96,3 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
 });
-

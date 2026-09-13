@@ -20,11 +20,18 @@ import {
   Shield,
   Sparkles,
   Server,
+  User,
+  LogIn,
+  LogOut,
+  Clock,
+  Database,
 } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Speech from 'expo-speech';
 
 import { useApp } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
+import { useProgress } from '../context/ProgressContext';
 import { COLORS, SPACING, RADIUS, SHADOWS } from '../constants/theme';
 import Header from '../components/Header';
 import { API_BASE_URL } from '../config/api';
@@ -41,6 +48,20 @@ export default function SettingsScreen() {
     resetOnboarding,
   } = useApp();
 
+  const {
+    user,
+    isAuthenticated,
+    openAuthModal,
+    logout,
+    currentTrialDay,
+    trialDaysLeft,
+    isTrialExpired,
+    resetTrial,
+    simulateTrialExpiry,
+  } = useAuth();
+
+  const { resetAllProgress } = useProgress();
+
   const [dailyReminder, setDailyReminder] = useState(true);
 
   const speedOptions = [
@@ -50,7 +71,7 @@ export default function SettingsScreen() {
   ];
 
   const handleTestSound = (speed) => {
-    Speech.speak('Hello! How are you doing today? Welcome to English Shika.', {
+    Speech.speak('Hello! Welcome to Marathi to English Learning App.', {
       language: 'en-US',
       rate: speed || soundSpeed || 0.85,
     });
@@ -70,6 +91,7 @@ export default function SettingsScreen() {
           onPress: async () => {
             await AsyncStorage.clear();
             await resetOnboarding();
+            await resetAllProgress();
             Alert.alert(
               language === 'mr' ? 'यशस्वी!' : 'Success!',
               language === 'mr' ? 'सर्व डेटा रीसेट केला गेला आहे.' : 'All app data has been reset.'
@@ -92,13 +114,77 @@ export default function SettingsScreen() {
             <Text style={styles.badgeText}>{language === 'mr' ? 'प्राधान्ये' : 'Preferences'}</Text>
           </View>
           <Text style={styles.headerTitle}>
-            {language === 'mr' ? 'अ‍ॅप सेटिंग्ज व ऑडिओ' : 'App Settings & Sound'}
+            {language === 'mr' ? 'अ‍ॅप सेटिंग्ज व प्रोफाइल' : 'App Settings & Profile'}
           </Text>
           <Text style={styles.headerSub}>
             {language === 'mr'
-              ? 'भाषा, ऑडिओ उच्चार वेग आणि शिकण्याचा स्तर नियंत्रित करा.'
-              : 'Customize app language, pronunciation speed, and learning level.'}
+              ? 'वापरकर्ता खाते, भाषा, ऑडिओ उच्चार वेग आणि शिकण्याचा स्तर नियंत्रित करा.'
+              : 'Manage user account, app language, pronunciation speed, and learning level.'}
           </Text>
+        </View>
+
+        {/* Section 0: User Account & Trial Status */}
+        <View style={styles.sectionCard}>
+          <View style={styles.sectionTitleRow}>
+            <User size={18} color={COLORS.primary} />
+            <Text style={styles.sectionTitle}>
+              {language === 'mr' ? 'वापरकर्ता खाते (User Account)' : 'User Account'}
+            </Text>
+          </View>
+
+          {isAuthenticated ? (
+            <View style={styles.accountBox}>
+              <View style={styles.userRow}>
+                <View style={styles.userAvatar}>
+                  <Text style={styles.userAvatarText}>{user?.name?.charAt(0)?.toUpperCase() || 'U'}</Text>
+                </View>
+                <View style={styles.userInfo}>
+                  <Text style={styles.userName}>{user?.name || 'Learner'}</Text>
+                  <Text style={styles.userEmail}>{user?.email}</Text>
+                  <View style={styles.activeTag}>
+                    <Check size={12} color="#065f46" />
+                    <Text style={styles.activeTagText}>खाते सक्रिय आहे (Active)</Text>
+                  </View>
+                </View>
+              </View>
+
+              <TouchableOpacity style={styles.logoutBtn} onPress={logout} activeOpacity={0.8}>
+                <LogOut size={16} color="#dc2626" />
+                <Text style={styles.logoutBtnText}>लॉगआउट करा (Logout)</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={styles.guestBox}>
+              <View style={styles.guestStatusRow}>
+                <Clock size={20} color="#f59e0b" />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.guestTitle}>
+                    {isTrialExpired ? '⚠️ मोफत ट्रायल संपला आहे' : `🎁 मोफत गेस्ट मोड: दिवस ${currentTrialDay} / 3`}
+                  </Text>
+                  <Text style={styles.guestSub}>
+                    {isTrialExpired
+                      ? 'अ‍ॅप सुरू ठेवण्यासाठी त्वरित मोफत खाते बनवा.'
+                      : `${trialDaysLeft} दिवस शिल्लक. प्रगती जतन करण्यासाठी मोफत खाते तयार करा.`}
+                  </Text>
+                </View>
+              </View>
+
+              <TouchableOpacity style={styles.loginActionBtn} onPress={openAuthModal} activeOpacity={0.85}>
+                <LogIn size={18} color="#ffffff" />
+                <Text style={styles.loginActionBtnText}>खाते लॉगिन किंवा तयार करा 🚀</Text>
+              </TouchableOpacity>
+
+              {/* Trial Debug Simulator Buttons */}
+              <View style={styles.debugTrialRow}>
+                <TouchableOpacity style={styles.debugTrialBtn} onPress={resetTrial}>
+                  <Text style={styles.debugTrialText}>🔄 Reset 3-Day Trial</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.debugTrialBtn} onPress={simulateTrialExpiry}>
+                  <Text style={styles.debugTrialText}>⏰ Test Expired</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
         </View>
 
         {/* Section 1: Language Switcher */}
@@ -140,24 +226,24 @@ export default function SettingsScreen() {
         {/* Section 2: Audio Pronunciation Speed */}
         <View style={styles.sectionCard}>
           <View style={styles.sectionTitleRow}>
-            <Volume2 size={18} color={COLORS.secondary} />
+            <Volume2 size={18} color={COLORS.primary} />
             <Text style={styles.sectionTitle}>
-              {language === 'mr' ? 'ऑडिओ उच्चार वेग (Voice Speed)' : 'Audio Speed'}
+              {language === 'mr' ? 'उच्चार ऑडिओचा वेग (Speech Speed)' : 'Speech Speed'}
             </Text>
           </View>
 
-          <View style={styles.speedOptionsRow}>
+          <View style={styles.speedRow}>
             {speedOptions.map(opt => {
-              const isSelected = (soundSpeed || 0.85) === opt.val;
+              const isSelected = soundSpeed === opt.val;
               return (
                 <TouchableOpacity
-                  key={opt.val}
+                  key={opt.val.toString()}
                   style={[styles.speedBtn, isSelected && styles.speedBtnSelected]}
                   onPress={() => {
                     setSoundSpeed(opt.val);
                     handleTestSound(opt.val);
                   }}
-                  activeOpacity={0.7}
+                  activeOpacity={0.8}
                 >
                   <Text style={[styles.speedBtnText, isSelected && styles.speedBtnTextSelected]}>
                     {opt.label}
@@ -167,58 +253,80 @@ export default function SettingsScreen() {
             })}
           </View>
 
-          <TouchableOpacity
-            style={styles.testSoundBtn}
-            onPress={() => handleTestSound(soundSpeed)}
-            activeOpacity={0.8}
-          >
+          <TouchableOpacity style={styles.testAudioBtn} onPress={() => handleTestSound()} activeOpacity={0.7}>
             <Volume2 size={16} color={COLORS.secondary} />
-            <Text style={styles.testSoundBtnText}>
-              {language === 'mr' ? 'आवाज तपासा (Test Audio)' : 'Test Pronunciation Voice'}
+            <Text style={styles.testAudioBtnText}>
+              {language === 'mr' ? 'उच्चार आवाज तपासा (Test Audio)' : 'Test Sound Sample'}
             </Text>
           </TouchableOpacity>
         </View>
 
-        {/* Section 3: Server & Sync Info */}
+        {/* Section 3: Daily Reminders */}
+        <View style={styles.sectionCard}>
+          <View style={styles.switchRow}>
+            <View style={styles.switchTextCol}>
+              <View style={styles.switchTitleRow}>
+                <Bell size={18} color={COLORS.primary} />
+                <Text style={styles.sectionTitle}>
+                  {language === 'mr' ? 'दैनिक आठवण (Daily Reminder)' : 'Daily Reminder'}
+                </Text>
+              </View>
+              <Text style={styles.switchSub}>
+                {language === 'mr'
+                  ? 'दररोज रात्री ८:०० वाजता सरावाची आठवण करून द्या.'
+                  : 'Get reminded every day at 8:00 PM.'}
+              </Text>
+            </View>
+            <Switch
+              value={dailyReminder}
+              onValueChange={setDailyReminder}
+              trackColor={{ false: '#CBD5E1', true: COLORS.primary }}
+              thumbColor={COLORS.white}
+            />
+          </View>
+        </View>
+
+        {/* Section 4: Backend Status */}
         <View style={styles.sectionCard}>
           <View style={styles.sectionTitleRow}>
-            <Server size={18} color={COLORS.accentGreen} />
+            <Database size={18} color={COLORS.primary} />
             <Text style={styles.sectionTitle}>
-              {language === 'mr' ? 'बॅकएंड सर्व्हर स्थिती' : 'Cloud Server Connection'}
+              {language === 'mr' ? 'सर्व्हर व डेटाबेस स्थिती' : 'Server & Database Status'}
             </Text>
           </View>
+
           <View style={styles.serverStatusBox}>
-            <View style={styles.onlineDot} />
-            <Text style={styles.serverStatusText}>
-              {language === 'mr' ? 'Render Live Cloud Server जोडलेले आहे' : 'Connected to Render Cloud API'}
-            </Text>
+            <View style={styles.serverRow}>
+              <Text style={styles.serverLabel}>Database:</Text>
+              <View style={styles.onlineBadge}>
+                <View style={styles.greenDot} />
+                <Text style={styles.onlineBadgeText}>Neon PostgreSQL (1500+ Words)</Text>
+              </View>
+            </View>
+            <View style={styles.serverRow}>
+              <Text style={styles.serverLabel}>Backend API:</Text>
+              <Text style={styles.serverValText}>Render Deployed Cloud</Text>
+            </View>
           </View>
-          <Text style={styles.serverUrlText}>{API_BASE_URL}</Text>
         </View>
 
-        {/* Section 4: Reset Data */}
-        <View style={styles.sectionCard}>
-          <View style={styles.sectionTitleRow}>
-            <RotateCcw size={18} color="#EF4444" />
-            <Text style={styles.sectionTitle}>
-              {language === 'mr' ? 'डेटा व प्रगती रीसेट करा' : 'Reset Progress'}
+        {/* Section 5: Reset Data */}
+        <TouchableOpacity style={styles.resetCard} onPress={handleResetData} activeOpacity={0.8}>
+          <RotateCcw size={18} color="#EF4444" />
+          <View style={styles.resetTextCol}>
+            <Text style={styles.resetTitle}>
+              {language === 'mr' ? 'सर्व प्रगती रीसेट करा (Reset Progress)' : 'Reset All Progress'}
+            </Text>
+            <Text style={styles.resetSub}>
+              {language === 'mr' ? 'सर्व धडे आणि गुण पुन्हा सुरुवातीपासून करा' : 'Start from beginning'}
             </Text>
           </View>
-          <Text style={styles.resetWarningText}>
-            {language === 'mr'
-              ? 'जर तुम्हाला सुरुवातीपासून पुन्हा अभ्यास सुरू करायचा असेल तर तुम्ही स्थानिक डेटा मिटवू शकता.'
-              : 'Clear your device learning progress and start fresh from onboarding.'}
-          </Text>
-          <TouchableOpacity
-            style={styles.resetBtn}
-            onPress={handleResetData}
-            activeOpacity={0.8}
-          >
-            <RotateCcw size={16} color="#EF4444" />
-            <Text style={styles.resetBtnText}>
-              {language === 'mr' ? 'सर्व प्रगती रीसेट करा' : 'Reset All Progress'}
-            </Text>
-          </TouchableOpacity>
+        </TouchableOpacity>
+
+        {/* App Info Footer */}
+        <View style={styles.footerWrap}>
+          <Text style={styles.footerVersion}>English शिका • Version 1.0.0</Text>
+          <Text style={styles.footerLove}>Made with ❤️ for Marathi & Hindi learners</Text>
         </View>
       </ScrollView>
     </View>
@@ -228,180 +336,350 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.bgMain,
+    backgroundColor: COLORS.background,
   },
   scrollContent: {
-    padding: SPACING.md,
-    paddingBottom: 120,
-    gap: 12,
+    padding: SPACING.lg,
+    paddingBottom: 60,
   },
   headerCard: {
-    backgroundColor: COLORS.white,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.md,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    ...SHADOWS.card,
+    marginBottom: SPACING.lg,
   },
   badge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    backgroundColor: COLORS.primaryLight,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: RADIUS.full,
     alignSelf: 'flex-start',
-    marginBottom: 6,
+    backgroundColor: '#EEF2FF',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 6,
+    marginBottom: 8,
   },
   badgeText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: COLORS.primaryDark,
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.primary,
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: COLORS.textMain,
+    fontSize: 22,
+    fontWeight: '800',
+    color: COLORS.text,
     marginBottom: 4,
   },
   headerSub: {
-    fontSize: 12,
+    fontSize: 13,
     color: COLORS.textMuted,
     lineHeight: 18,
   },
   sectionCard: {
     backgroundColor: COLORS.white,
-    borderRadius: RADIUS.md,
-    padding: SPACING.md,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.lg,
+    marginBottom: SPACING.md,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: '#E2E8F0',
     ...SHADOWS.sm,
   },
   sectionTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: 12,
+    marginBottom: SPACING.md,
   },
   sectionTitle: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '800',
-    color: COLORS.textMain,
+    color: COLORS.text,
+  },
+  accountBox: {
+    gap: 12,
+  },
+  userRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  userAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#4f46e5',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  userAvatarText: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#ffffff',
+  },
+  userInfo: {
+    flex: 1,
+  },
+  userName: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0f172a',
+  },
+  userEmail: {
+    fontSize: 12,
+    color: '#64748b',
+    marginTop: 1,
+  },
+  activeTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#ecfdf5',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+    marginTop: 4,
+  },
+  activeTagText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#065f46',
+  },
+  logoutBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fee2e2',
+    borderRadius: 10,
+    paddingVertical: 10,
+    gap: 6,
+    marginTop: 6,
+  },
+  logoutBtnText: {
+    color: '#dc2626',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  guestBox: {
+    gap: 12,
+  },
+  guestStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#fffbeb',
+    borderColor: '#fde68a',
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+  },
+  guestTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#92400e',
+  },
+  guestSub: {
+    fontSize: 11,
+    color: '#b45309',
+    marginTop: 2,
+  },
+  loginActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#4f46e5',
+    borderRadius: 12,
+    paddingVertical: 12,
+    gap: 8,
+  },
+  loginActionBtnText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  debugTrialRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 8,
+    marginTop: 4,
+  },
+  debugTrialBtn: {
+    flex: 1,
+    backgroundColor: '#f1f5f9',
+    borderRadius: 8,
+    paddingVertical: 6,
+    alignItems: 'center',
+  },
+  debugTrialText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#64748b',
   },
   optionsCol: {
     gap: 8,
   },
   optionRowBtn: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
     padding: 12,
-    borderRadius: RADIUS.sm,
     backgroundColor: '#F8FAFC',
-    borderWidth: 1.5,
-    borderColor: COLORS.border,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
   optionRowBtnSelected: {
-    backgroundColor: COLORS.primaryLight,
+    backgroundColor: '#EEF2FF',
     borderColor: COLORS.primary,
   },
   optionTextCol: {
     flex: 1,
   },
   optionTitle: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: COLORS.textMain,
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.text,
   },
   optionTitleSelected: {
-    color: COLORS.primaryDark,
+    color: COLORS.primary,
   },
   optionDesc: {
     fontSize: 11,
     color: COLORS.textMuted,
     marginTop: 2,
   },
-  speedOptionsRow: {
+  speedRow: {
     flexDirection: 'row',
-    gap: 6,
-    marginBottom: 10,
+    gap: 8,
+    marginBottom: SPACING.md,
   },
   speedBtn: {
     flex: 1,
-    paddingVertical: 10,
-    borderRadius: RADIUS.sm,
     backgroundColor: '#F8FAFC',
-    borderWidth: 1.5,
-    borderColor: COLORS.border,
+    paddingVertical: 10,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
     alignItems: 'center',
   },
   speedBtnSelected: {
-    backgroundColor: COLORS.secondaryLight,
-    borderColor: COLORS.secondary,
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
   },
   speedBtnText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '700',
     color: COLORS.textMuted,
   },
   speedBtnTextSelected: {
-    color: COLORS.secondary,
-    fontWeight: '800',
+    color: COLORS.white,
   },
-  testSoundBtn: {
+  testAudioBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    backgroundColor: COLORS.secondaryLight,
+    backgroundColor: '#EEF2FF',
     paddingVertical: 10,
-    borderRadius: RADIUS.sm,
+    borderRadius: RADIUS.md,
+    gap: 6,
   },
-  testSoundBtnText: {
-    fontSize: 12,
-    fontWeight: '800',
+  testAudioBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
     color: COLORS.secondary,
   },
+  switchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  switchTextCol: {
+    flex: 1,
+    paddingRight: 10,
+  },
+  switchTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
+  },
+  switchSub: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+  },
   serverStatusBox: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 10,
+    padding: 12,
+    gap: 8,
+  },
+  serverRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  serverLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#64748b',
+  },
+  serverValText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#334155',
+  },
+  onlineBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginBottom: 4,
+    backgroundColor: '#ecfdf5',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
   },
-  onlineDot: {
+  greenDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: COLORS.accentGreen,
+    backgroundColor: '#10b981',
   },
-  serverStatusText: {
-    fontSize: 12,
+  onlineBadgeText: {
+    fontSize: 11,
     fontWeight: '700',
-    color: COLORS.accentGreenDark,
+    color: '#065f46',
   },
-  serverUrlText: {
-    fontSize: 10,
-    color: COLORS.textLight,
-  },
-  resetWarningText: {
-    fontSize: 12,
-    color: COLORS.textMuted,
-    lineHeight: 18,
-    marginBottom: 10,
-  },
-  resetBtn: {
+  resetCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    backgroundColor: '#FEE2E2',
-    paddingVertical: 11,
-    borderRadius: RADIUS.sm,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    borderRadius: RADIUS.lg,
+    padding: SPACING.md,
+    gap: 12,
+    marginBottom: SPACING.xl,
   },
-  resetBtnText: {
-    fontSize: 12,
+  resetTextCol: {
+    flex: 1,
+  },
+  resetTitle: {
+    fontSize: 14,
     fontWeight: '800',
     color: '#EF4444',
+  },
+  resetSub: {
+    fontSize: 11,
+    color: '#B91C1C',
+    marginTop: 2,
+  },
+  footerWrap: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  footerVersion: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.textLight,
+  },
+  footerLove: {
+    fontSize: 11,
+    color: COLORS.textLight,
   },
 });

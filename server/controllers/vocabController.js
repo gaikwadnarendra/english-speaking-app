@@ -1,100 +1,65 @@
 const { getDbStatus, getPool, memoryStore } = require('../config/db');
 
 // GET /api/vocab
-// Query params: search, category, type, level, favorite, difficult, srs_box, sort
+// Query params: search, category, type, level, favorite, difficult, srs_box, sort, page, limit
 exports.getAllVocab = async (req, res) => {
   try {
-    const { search, category, type, level, favorite, difficult, srs_box, sort } = req.query;
-    const { isConnected, isMySQLConnected } = getDbStatus();
+    const { search, category, type, level, favorite, difficult, srs_box, sort, page, limit } = req.query;
 
-    if (isConnected || isMySQLConnected) {
-      const pool = getPool();
-      let query = 'SELECT * FROM vocabularies WHERE 1=1';
-      const params = [];
-
-      if (search) {
-        query += ' AND (word LIKE ? OR marathi LIKE ? OR hindi LIKE ? OR pronunciation LIKE ?)';
-        const s = `%${search}%`;
-        params.push(s, s, s, s);
-      }
-      if (category && category !== 'All') {
-        query += ' AND category = ?';
-        params.push(category);
-      }
-      if (type && type !== 'all') {
-        query += ' AND type = ?';
-        params.push(type);
-      }
-      if (level) {
-        query += ' AND level = ?';
-        params.push(parseInt(level, 10));
-      }
-      if (favorite === 'true') {
-        query += ' AND is_favorite = true';
-      }
-      if (difficult === 'true') {
-        query += ' AND is_difficult = true';
-      }
-      if (srs_box) {
-        query += ' AND srs_box = ?';
-        params.push(srs_box);
-      }
-
-      if (sort === 'az') {
-        query += ' ORDER BY word ASC';
-      } else if (sort === 'za') {
-        query += ' ORDER BY word DESC';
-      } else {
-        query += ' ORDER BY id ASC';
-      }
-
-      const [rows] = await pool.query(query, params);
-      const parsedRows = rows.map(r => ({
-        ...r,
-        is_favorite: Boolean(r.is_favorite),
-        is_difficult: Boolean(r.is_difficult),
-        examples: typeof r.examples === 'string' ? JSON.parse(r.examples) : (r.examples || [])
-      }));
-      return res.json({ success: true, count: parsedRows.length, data: parsedRows });
-    }
-
-    // Fallback store
     let list = [...memoryStore.vocab];
+
     if (search) {
-      const q = search.toLowerCase();
+      const q = search.toLowerCase().trim();
       list = list.filter(w =>
-        w.word.toLowerCase().includes(q) ||
-        w.marathi.includes(q) ||
-        w.hindi.includes(q) ||
-        w.pronunciation.includes(q)
+        (w.word && w.word.toLowerCase().includes(q)) ||
+        (w.marathi && w.marathi.includes(q)) ||
+        (w.hindi && w.hindi.includes(q)) ||
+        (w.pronunciation && w.pronunciation.includes(q))
       );
     }
     if (category && category !== 'All') {
-      list = list.filter(w => w.category === category);
+      list = list.filter(w => w.category && w.category.toLowerCase() === category.toLowerCase());
     }
     if (type && type !== 'all') {
-      list = list.filter(w => w.type === type);
+      list = list.filter(w => w.type && w.type.toLowerCase() === type.toLowerCase());
     }
     if (level) {
       list = list.filter(w => w.level === parseInt(level, 10));
     }
     if (favorite === 'true') {
-      list = list.filter(w => w.is_favorite);
+      list = list.filter(w => Boolean(w.is_favorite));
     }
     if (difficult === 'true') {
-      list = list.filter(w => w.is_difficult);
+      list = list.filter(w => Boolean(w.is_difficult));
     }
     if (srs_box) {
       list = list.filter(w => w.srs_box === srs_box);
     }
 
     if (sort === 'az') {
-      list.sort((a, b) => a.word.localeCompare(b.word));
+      list.sort((a, b) => (a.word || '').localeCompare(b.word || ''));
     } else if (sort === 'za') {
-      list.sort((a, b) => b.word.localeCompare(a.word));
+      list.sort((a, b) => (b.word || '').localeCompare(a.word || ''));
+    } else {
+      list.sort((a, b) => (a.id || 0) - (b.id || 0));
     }
 
-    res.json({ success: true, count: list.length, data: list });
+    const totalCount = list.length;
+
+    // Optional pagination support
+    if (limit) {
+      const l = parseInt(limit, 10);
+      const p = parseInt(page || '1', 10);
+      const start = (p - 1) * l;
+      list = list.slice(start, start + l);
+    }
+
+    res.json({
+      success: true,
+      count: totalCount,
+      returnedCount: list.length,
+      data: list
+    });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -126,19 +91,21 @@ exports.toggleFavorite = async (req, res) => {
     const id = parseInt(req.params.id, 10);
     const { isConnected, isMySQLConnected } = getDbStatus();
 
-    if (isConnected || isMySQLConnected) {
-      const pool = getPool();
-      await pool.query('UPDATE vocabularies SET is_favorite = NOT is_favorite WHERE id = ?', [id]);
-      const [rows] = await pool.query('SELECT is_favorite FROM vocabularies WHERE id = ?', [id]);
-      return res.json({ success: true, is_favorite: Boolean(rows[0]?.is_favorite) });
-    }
-
+    let newFavState = false;
     const item = memoryStore.vocab.find(v => v.id === id);
     if (item) {
       item.is_favorite = !item.is_favorite;
-      return res.json({ success: true, is_favorite: item.is_favorite });
+      newFavState = item.is_favorite;
     }
-    res.status(404).json({ success: false, message: 'Word not found' });
+
+    if (isConnected || isMySQLConnected) {
+      const pool = getPool();
+      if (pool) {
+        await pool.query('UPDATE vocabularies SET is_favorite = ? WHERE id = ?', [Boolean(newFavState), id]).catch(() => {});
+      }
+    }
+
+    return res.json({ success: true, is_favorite: Boolean(newFavState) });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

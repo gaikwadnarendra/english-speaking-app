@@ -2,14 +2,16 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Flame, Globe, Settings, Heart } from 'lucide-react-native';
+import { Flame, Globe, Settings, Heart, User } from 'lucide-react-native';
 import { COLORS, SPACING, RADIUS, SHADOWS } from '../constants/theme';
 import { useApp } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
 
 const Header = () => {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const { t, language, changeLanguage, streak } = useApp();
+  const { user, isAuthenticated, openAuthModal } = useAuth();
 
   const cycleLanguage = () => {
     if (language === 'mr') changeLanguage('hi');
@@ -67,6 +69,21 @@ const Header = () => {
         >
           <Globe size={13} color={COLORS.secondary} />
           <Text style={styles.langText}>{getLangLabel()}</Text>
+        </TouchableOpacity>
+
+        {/* User Account / Login Button */}
+        <TouchableOpacity
+          style={styles.iconActionBtn}
+          onPress={openAuthModal}
+          activeOpacity={0.7}
+        >
+          {isAuthenticated ? (
+            <View style={styles.headerAvatar}>
+              <Text style={styles.headerAvatarText}>{user?.name?.charAt(0)?.toUpperCase() || 'U'}</Text>
+            </View>
+          ) : (
+            <User size={16} color={COLORS.secondary} />
+          )}
         </TouchableOpacity>
 
         {/* Settings Quick Button */}
@@ -162,6 +179,19 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '800',
     color: COLORS.secondary,
+  },
+  headerAvatar: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: COLORS.secondary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerAvatarText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#ffffff',
   },
 });
 

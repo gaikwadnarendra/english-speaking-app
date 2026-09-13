@@ -22,15 +22,17 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { useApp } from '../context/AppContext';
+import { useProgress } from '../context/ProgressContext';
 import { COLORS, SPACING, RADIUS, SHADOWS } from '../constants/theme';
 import Header from '../components/Header';
 import { api } from '../config/api';
 
 export default function ProgressScreen() {
   const { t, language, streak, userLevel } = useApp();
+  const { LEVELS, isLevelComplete, isLevelUnlocked, isTaskCompleted } = useProgress();
 
   const [stats, setStats] = useState({
-    wordsLearned: 45,
+    wordsLearned: 145,
     lessonsFinished: 5,
     quizzesSolved: 18,
     speakingPracticed: 12,
@@ -41,7 +43,7 @@ export default function ProgressScreen() {
   useEffect(() => {
     const loadStats = async () => {
       try {
-        const res = await api.get('/progress/stats');
+        const res = await api.get('/progress');
         if (res.data?.data) {
           setStats(prev => ({ ...prev, ...res.data.data }));
         }
@@ -50,43 +52,13 @@ export default function ProgressScreen() {
     loadStats();
   }, []);
 
-  const milestones = [
-    {
-      level: 1,
-      title: language === 'mr' ? 'लेव्हल १: नवशिक्या (Beginner)' : 'Level 1: Beginner',
-      desc: language === 'mr' ? 'मूलभूत मुळाक्षरे, सोपे शब्द व आवाज' : 'Phonics & 50 starter words',
-      unlocked: true,
-      completed: true,
-    },
-    {
-      level: 2,
-      title: language === 'mr' ? 'लेव्हल २: क्रियापदे व काळ' : 'Level 2: Verbs & Tenses',
-      desc: language === 'mr' ? 'V1, V2, V3 क्रियापदे आणि साधे काळ' : 'Daily routines & V1-V2-V3 verbs',
-      unlocked: true,
-      completed: false,
-    },
-    {
-      level: 3,
-      title: language === 'mr' ? 'लेव्हल ३: वाक्य रचना (Sentence Building)' : 'Level 3: Sentence Patterns',
-      desc: language === 'mr' ? 'I want, I have वाक्यरचना सराव' : 'Tenses, sentence builders & rules',
-      unlocked: true,
-      completed: false,
-    },
-    {
-      level: 4,
-      title: language === 'mr' ? 'लेव्हल ४: दैनंदिन संभाषण (Dialogues)' : 'Level 4: Fluent Speaker',
-      desc: language === 'mr' ? 'हॉटेल, प्रवास आणि संवाद' : 'Public speaking & shopping dialogues',
-      unlocked: false,
-      completed: false,
-    },
-    {
-      level: 5,
-      title: language === 'mr' ? 'लेव्हल ५: अस्खलित इंग्रजी (Mastery)' : 'Level 5: English Guru',
-      desc: language === 'mr' ? 'मुलाखत व व्यावसायिक इंग्रजी' : 'Job interviews & professional mastery',
-      unlocked: false,
-      completed: false,
-    },
-  ];
+  const milestones = LEVELS.map(lvl => ({
+    level: lvl.id,
+    title: language === 'mr' ? lvl.nameMr : lvl.name,
+    desc: `${lvl.tasks.filter(t => isTaskCompleted(lvl.id, t.key)).length}/${lvl.tasks.length} ${language === 'mr' ? 'टास्क पूर्ण' : 'tasks done'}`,
+    unlocked: isLevelUnlocked(lvl.id),
+    completed: isLevelComplete(lvl.id),
+  }));
 
   const badges = [
     { id: 1, title: language === 'mr' ? 'पहिले पाऊल' : 'First Step', icon: '🚀', desc: language === 'mr' ? 'पहिला धडा पूर्ण' : 'Completed first lesson', earned: true },

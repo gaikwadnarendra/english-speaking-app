@@ -10,6 +10,7 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Modal,
 } from 'react-native';
 import {
   Bot,
@@ -26,11 +27,14 @@ import {
   Flame,
   User,
   Lightbulb,
+  X,
+  Radio,
 } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Speech from 'expo-speech';
 
 import { useApp } from '../context/AppContext';
+import { useProgress } from '../context/ProgressContext';
 import { COLORS, SPACING, RADIUS, SHADOWS } from '../constants/theme';
 import Header from '../components/Header';
 import AudioButton from '../components/AudioButton';
@@ -42,6 +46,7 @@ import { api } from '../config/api';
 
 export default function SpeakingScreen() {
   const { t, language, speechRate } = useApp();
+  const { completeTask } = useProgress();
 
   // Mode: 'ai_chat' | 'listen_repeat'
   const [speakingMode, setSpeakingMode] = useState('ai_chat');
@@ -53,7 +58,8 @@ export default function SpeakingScreen() {
   const [inputText, setInputText] = useState('');
   const [isLoadingAI, setIsLoadingAI] = useState(false);
   const [autoSpeakAI, setAutoSpeakAI] = useState(true);
-  const [isMicActive, setIsMicActive] = useState(false);
+  const [isMicModalOpen, setIsMicModalOpen] = useState(false);
+  const [isListening, setIsListening] = useState(false);
 
   // ================= LISTEN & REPEAT STATE =================
   const [sentenceIdx, setSentenceIdx] = useState(0);
@@ -118,15 +124,21 @@ export default function SpeakingScreen() {
       grammarFeedback: null,
     };
 
-    setMessages(prev => [...prev, userMsg]);
+    const newMessages = [...messages, userMsg];
+    setMessages(newMessages);
     setInputText('');
     setIsLoadingAI(true);
+
+    const userTurnCount = newMessages.filter(m => m.sender === 'user').length;
+    if (userTurnCount >= 3) {
+      completeTask(5, 'speaking_ai');
+    }
 
     try {
       const res = await api.post('/speaking/chat', {
         scenarioId: selectedScenarioId,
         userMessage: text,
-        conversationHistory: messages.map(m => ({ role: m.sender, content: m.text_en })),
+        conversationHistory: newMessages.map(m => ({ role: m.sender, content: m.text_en })),
       });
 
       let aiResponseText = 'Great sentence! Keep speaking with me.';
@@ -140,15 +152,18 @@ export default function SpeakingScreen() {
         grammarNote = res.data.data.grammar_tip || res.data.data.feedback;
         nextStarters = res.data.data.suggested_replies || [];
       } else {
-        // Smart Local AI Fallback Simulator
-        if (selectedScenarioId === 'hotel') {
+        if (selectedScenarioId === 'interview') {
+          aiResponseText = 'That is impressive! What are your greatest strengths?';
+          aiResponseLoc = 'खूप छान! तुमची सर्वात मोठी ताकद कोणती आहे?';
+          nextStarters = ['I am hardworking and dedicated.', 'I learn new things quickly.'];
+        } else if (selectedScenarioId === 'hotel' || selectedScenarioId === 'restaurant') {
           aiResponseText = 'Certainly! Would you like a hot coffee or iced tea?';
           aiResponseLoc = 'नक्कीच! तुम्हाला गरम कॉफी हवी आहे की थंड चहा?';
           nextStarters = ['I would like a hot coffee, please.', 'Can I have the bill?'];
         } else if (selectedScenarioId === 'travel') {
-          aiResponseText = 'The bus stop is straight ahead, about 200 meters away.';
-          aiResponseLoc = 'बस थांबा समोर सरळ २०० मीटर अंतरावर आहे.';
-          nextStarters = ['Thank you very much!', 'How much is the ticket?'];
+          aiResponseText = 'The platform number is 3. The train will arrive in 10 minutes.';
+          aiResponseLoc = 'प्लॅटफॉर्म क्रमांक ३ आहे. ट्रेन १० मिनिटांत येईल.';
+          nextStarters = ['Thank you very much!', 'Where can I buy tickets?'];
         } else {
           aiResponseText = 'That sounds wonderful! What are your plans for today?';
           aiResponseLoc = 'हे खूप छान आहे! आजचे तुमचे काय नियोजन आहे?';
@@ -190,14 +205,15 @@ export default function SpeakingScreen() {
     }
   };
 
-  const handleSimulateMic = () => {
-    setIsMicActive(true);
-    setTimeout(() => {
-      setIsMicActive(false);
-      const starters = currentScenario?.suggested_starter || ['Hello, how are you?'];
-      const picked = starters[Math.floor(Math.random() * starters.length)];
-      handleSendMessage(picked);
-    }, 1200);
+  const handleOpenMic = () => {
+    setIsMicModalOpen(true);
+    setIsListening(true);
+  };
+
+  const handlePickVoiceStarter = (phrase) => {
+    setIsMicModalOpen(false);
+    setIsListening(false);
+    handleSendMessage(phrase);
   };
 
   // Listen & Repeat
@@ -210,7 +226,10 @@ export default function SpeakingScreen() {
       setIsEvaluating(false);
       const randomAccuracy = Math.floor(Math.random() * 15) + 85; // 85% to 99%
       setEvalScore(randomAccuracy);
-    }, 1500);
+      const nextCount = sentenceIdx + 1;
+      if (nextCount >= 5) completeTask(2, 'speaking_5');
+      if (nextCount >= 15) completeTask(4, 'speaking_15');
+    }, 1200);
   };
 
   return (
@@ -260,7 +279,7 @@ export default function SpeakingScreen() {
                   activeOpacity={0.7}
                 >
                   <Text style={[styles.scenarioPillText, isSelected && styles.scenarioPillTextActive]}>
-                    {sc.title_en || sc.title}
+                    {sc.title_mr || sc.title_en || sc.title}
                   </Text>
                 </TouchableOpacity>
               );
@@ -326,7 +345,7 @@ export default function SpeakingScreen() {
             {isLoadingAI && (
               <View style={styles.aiTypingRow}>
                 <ActivityIndicator size="small" color={COLORS.secondary} />
-                <Text style={styles.aiTypingText}>AI is thinking...</Text>
+                <Text style={styles.aiTypingText}>AI विचार करत आहे...</Text>
               </View>
             )}
           </ScrollView>
@@ -334,11 +353,11 @@ export default function SpeakingScreen() {
           {/* Chat Input Bar */}
           <View style={styles.inputBarWrap}>
             <TouchableOpacity
-              style={[styles.micBtn, isMicActive && styles.micBtnActive]}
-              onPress={handleSimulateMic}
+              style={styles.micBtn}
+              onPress={handleOpenMic}
               activeOpacity={0.7}
             >
-              <Mic size={20} color={isMicActive ? COLORS.white : COLORS.primary} />
+              <Mic size={20} color={COLORS.primary} />
             </TouchableOpacity>
 
             <TextInput
@@ -398,32 +417,32 @@ export default function SpeakingScreen() {
                 </View>
                 <Text style={styles.evalFeedbackText}>
                   {evalScore >= 90
-                    ? (language === 'mr' ? 'उत्कृष्ट उच्चार! (+20 XP)' : 'Excellent Pronunciation! (+20 XP)')
-                    : (language === 'mr' ? 'छान! आणखी स्पष्ट बोलण्याचा सराव करा.' : 'Good attempt! Try to speak clearer.')}
+                    ? '🎉 उत्कृष्ट उच्चार! तुमची इंग्रजी बोलण्याची क्षमता उत्तम आहे.'
+                    : '👍 छान प्रयत्न! पुन्हा ऐका आणि स्पष्ट आवाजात पुन्हा बोला.'}
                 </Text>
               </View>
             )}
 
-            {/* Record / Speaking CTA */}
+            {/* Record & Evaluate Button */}
             <TouchableOpacity
-              style={[styles.drillRecordBtn, isEvaluating && styles.drillRecordBtnActive]}
+              style={[styles.drillRecordBtn, isEvaluating && styles.drillRecordBtnLoading]}
               onPress={handleEvaluateSpeaking}
               disabled={isEvaluating}
-              activeOpacity={0.8}
+              activeOpacity={0.85}
             >
               {isEvaluating ? (
-                <ActivityIndicator size="small" color={COLORS.white} />
+                <ActivityIndicator color={COLORS.white} />
               ) : (
-                <Mic size={24} color={COLORS.white} />
+                <>
+                  <Mic size={22} color={COLORS.white} />
+                  <Text style={styles.drillRecordBtnText}>
+                    {language === 'mr' ? 'माईक दाबून बोला व तपासा' : 'Tap to Speak & Check'}
+                  </Text>
+                </>
               )}
-              <Text style={styles.drillRecordBtnText}>
-                {isEvaluating
-                  ? (language === 'mr' ? 'ऐकत आहे व तपासत आहे...' : 'Listening & Evaluating...')
-                  : (language === 'mr' ? 'माईक दाबून बोला' : 'Tap to Speak & Check')}
-              </Text>
             </TouchableOpacity>
 
-            {/* Nav Row */}
+            {/* Navigation Buttons */}
             <View style={styles.drillNavRow}>
               <TouchableOpacity
                 style={[styles.drillNavBtn, sentenceIdx === 0 && styles.drillNavBtnDisabled]}
@@ -433,8 +452,8 @@ export default function SpeakingScreen() {
                   setEvalScore(null);
                 }}
               >
-                <ChevronLeft size={20} color={COLORS.secondary} />
-                <Text style={styles.drillNavBtnText}>{language === 'mr' ? 'मागील वाक्य' : 'Previous'}</Text>
+                <ChevronLeft size={18} color={COLORS.text} />
+                <Text style={styles.drillNavText}>{language === 'mr' ? 'मागील वाक्य' : 'Previous'}</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -445,13 +464,61 @@ export default function SpeakingScreen() {
                   setEvalScore(null);
                 }}
               >
-                <Text style={styles.drillNavBtnText}>{language === 'mr' ? 'पुढील वाक्य' : 'Next'}</Text>
-                <ChevronRight size={20} color={COLORS.secondary} />
+                <Text style={styles.drillNavText}>{language === 'mr' ? 'पुढील वाक्य' : 'Next'}</Text>
+                <ChevronRight size={18} color={COLORS.text} />
               </TouchableOpacity>
             </View>
           </View>
         </ScrollView>
       )}
+
+      {/* Mic Audio Interactive Modal */}
+      <Modal
+        visible={isMicModalOpen}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setIsMicModalOpen(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.micModalCard}>
+            <View style={styles.micModalHeader}>
+              <Text style={styles.micModalTitle}>🎤 आवाजी संभाषण (Voice Input)</Text>
+              <TouchableOpacity onPress={() => setIsMicModalOpen(false)} style={styles.closeBtn}>
+                <X size={18} color="#64748b" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.waveContainer}>
+              <View style={[styles.waveCircle, styles.waveCircleOuter]} />
+              <View style={[styles.waveCircle, styles.waveCircleMiddle]} />
+              <View style={styles.micActiveCircle}>
+                <Mic size={36} color="#ffffff" />
+              </View>
+            </View>
+
+            <Text style={styles.micListeningText}>AI ऐकत आहे... (Listening...)</Text>
+            <Text style={styles.micSubText}>खालीलपैकी कोणतेही वाक्य टॅप करा किंवा इंग्रजीत बोला:</Text>
+
+            <View style={styles.quickStartersList}>
+              {(currentScenario?.suggested_starter || [
+                'Hello! How are you doing today?',
+                'I am practicing my English speaking.',
+                'Could you please help me with this?',
+              ]).map((phrase, idx) => (
+                <TouchableOpacity
+                  key={idx}
+                  style={styles.quickStarterItem}
+                  onPress={() => handlePickVoiceStarter(phrase)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.quickStarterText}>"{phrase}"</Text>
+                  <Send size={14} color="#4f46e5" />
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -459,76 +526,77 @@ export default function SpeakingScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.bgMain,
+    backgroundColor: COLORS.background,
   },
   topTabsWrap: {
     flexDirection: 'row',
-    backgroundColor: '#E2E8F0',
-    marginHorizontal: SPACING.md,
-    marginTop: 8,
-    borderRadius: RADIUS.md,
-    padding: 3,
-    gap: 4,
+    backgroundColor: '#F1F5F9',
+    borderRadius: RADIUS.lg,
+    padding: 4,
+    marginHorizontal: SPACING.lg,
+    marginVertical: SPACING.sm,
   },
   topTabBtn: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    paddingVertical: 10,
+    borderRadius: RADIUS.md,
     gap: 6,
-    paddingVertical: 9,
-    borderRadius: RADIUS.sm,
   },
   topTabBtnActive: {
     backgroundColor: COLORS.secondary,
-    ...SHADOWS.sm,
   },
   topTabText: {
-    fontSize: 12,
-    fontWeight: '800',
+    fontSize: 13,
+    fontWeight: '600',
     color: COLORS.textMuted,
   },
   topTabTextActive: {
     color: COLORS.white,
+    fontWeight: '700',
   },
   chatContainer: {
     flex: 1,
   },
   scenariosScroll: {
-    flexDirection: 'row',
-    paddingHorizontal: SPACING.md,
-    paddingVertical: 8,
-    maxHeight: 46,
+    paddingHorizontal: SPACING.lg,
+    marginVertical: 6,
+    maxHeight: 44,
   },
   scenarioPill: {
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     paddingVertical: 6,
-    borderRadius: RADIUS.full,
     backgroundColor: COLORS.white,
+    borderRadius: 20,
+    marginRight: 8,
     borderWidth: 1,
-    borderColor: COLORS.border,
-    marginRight: 6,
+    borderColor: '#E2E8F0',
+    justifyContent: 'center',
   },
   scenarioPillActive: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
+    backgroundColor: COLORS.secondary,
+    borderColor: COLORS.secondary,
   },
   scenarioPillText: {
-    fontSize: 11,
-    fontWeight: '700',
+    fontSize: 12,
+    fontWeight: '600',
     color: COLORS.textMuted,
   },
   scenarioPillTextActive: {
     color: COLORS.white,
   },
   chatMessagesContent: {
-    padding: SPACING.md,
-    paddingBottom: 20,
+    paddingHorizontal: SPACING.lg,
+    paddingBottom: SPACING.lg,
     gap: 12,
   },
   msgRow: {
     flexDirection: 'row',
+    alignItems: 'flex-start',
     gap: 8,
+    marginVertical: 4,
   },
   msgRowAi: {
     justifyContent: 'flex-start',
@@ -540,21 +608,21 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: COLORS.secondaryLight,
-    alignItems: 'center',
+    backgroundColor: '#EEF2FF',
     justifyContent: 'center',
-    marginTop: 4,
+    alignItems: 'center',
+    marginTop: 2,
   },
   msgBubble: {
-    maxWidth: '82%',
-    padding: 12,
+    maxWidth: '80%',
     borderRadius: RADIUS.lg,
+    padding: SPACING.md,
   },
   msgBubbleAi: {
     backgroundColor: COLORS.white,
     borderTopLeftRadius: 4,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: '#E2E8F0',
     ...SHADOWS.sm,
   },
   msgBubbleUser: {
@@ -562,58 +630,59 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 4,
   },
   msgTextEn: {
-    fontSize: 14,
-    fontWeight: '700',
-    lineHeight: 20,
+    fontSize: 15,
+    lineHeight: 21,
   },
   msgTextEnAi: {
-    color: COLORS.textMain,
+    fontWeight: '600',
+    color: COLORS.text,
   },
   msgTextEnUser: {
+    fontWeight: '600',
     color: COLORS.white,
   },
   msgTextLoc: {
     fontSize: 12,
     color: COLORS.textMuted,
     marginTop: 4,
-    fontStyle: 'italic',
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+    paddingTop: 4,
   },
   msgAudioRow: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
-    marginTop: 4,
+    alignItems: 'center',
+    marginTop: 6,
   },
   startersWrap: {
     marginTop: 8,
     paddingTop: 8,
     borderTopWidth: 1,
     borderTopColor: '#F1F5F9',
-    gap: 4,
   },
   startersHeading: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: COLORS.primary,
-    textTransform: 'uppercase',
+    fontSize: 11,
+    fontWeight: '600',
+    color: COLORS.textLight,
+    marginBottom: 4,
   },
   starterBtn: {
-    backgroundColor: COLORS.primaryLight,
-    paddingHorizontal: 8,
-    paddingVertical: 5,
+    backgroundColor: '#EEF2FF',
     borderRadius: RADIUS.sm,
-    borderWidth: 1,
-    borderColor: COLORS.borderAmber,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginVertical: 2,
   },
   starterBtnText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: COLORS.primaryDark,
+    fontSize: 12,
+    color: COLORS.secondary,
+    fontWeight: '600',
   },
   aiTypingRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    paddingLeft: 40,
+    paddingVertical: 8,
   },
   aiTypingText: {
     fontSize: 12,
@@ -623,169 +692,261 @@ const styles = StyleSheet.create({
   inputBarWrap: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.sm,
     backgroundColor: COLORS.white,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: 10,
     borderTopWidth: 1,
-    borderTopColor: COLORS.border,
+    borderTopColor: '#E2E8F0',
     gap: 8,
-    marginBottom: Platform.OS === 'ios' ? 20 : 0,
   },
   micBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: COLORS.primaryLight,
-    alignItems: 'center',
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#EEF2FF',
     justifyContent: 'center',
-  },
-  micBtnActive: {
-    backgroundColor: COLORS.primary,
+    alignItems: 'center',
   },
   chatTextInput: {
     flex: 1,
+    height: 42,
     backgroundColor: '#F8FAFC',
+    borderRadius: RADIUS.md,
+    paddingHorizontal: 12,
+    fontSize: 14,
+    color: COLORS.text,
     borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: RADIUS.full,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    fontSize: 13,
-    color: COLORS.textMain,
+    borderColor: '#E2E8F0',
   },
   sendBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     backgroundColor: COLORS.secondary,
-    alignItems: 'center',
     justifyContent: 'center',
+    alignItems: 'center',
   },
   sendBtnDisabled: {
     opacity: 0.4,
   },
   listenScrollContent: {
-    padding: SPACING.md,
-    paddingBottom: 120,
+    padding: SPACING.lg,
+    paddingBottom: 40,
   },
   drillCard: {
     backgroundColor: COLORS.white,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.lg,
+    borderRadius: RADIUS.xl,
+    padding: SPACING.xl,
     borderWidth: 1,
-    borderColor: COLORS.border,
-    ...SHADOWS.card,
-    gap: 12,
+    borderColor: '#E2E8F0',
+    ...SHADOWS.md,
   },
   drillHeaderRow: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
   },
   drillBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    backgroundColor: COLORS.accentGreenLight,
-    paddingHorizontal: 8,
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: RADIUS.full,
+    borderRadius: 12,
+    gap: 4,
   },
   drillBadgeText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: COLORS.accentGreenDark,
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.accentGreen,
   },
   drillTargetEn: {
     fontSize: 22,
-    fontWeight: '900',
-    color: COLORS.textMain,
-    lineHeight: 28,
+    fontWeight: '800',
+    color: COLORS.text,
+    marginBottom: 4,
   },
   drillPronunciation: {
     fontSize: 14,
-    color: COLORS.primaryDark,
-    fontWeight: '700',
+    color: COLORS.textMuted,
+    marginBottom: 16,
   },
   drillMeaningBox: {
     backgroundColor: '#F8FAFC',
-    padding: 12,
     borderRadius: RADIUS.md,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    gap: 4,
+    padding: SPACING.md,
+    marginBottom: 20,
   },
   drillMeaningLabel: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: COLORS.textMuted,
-    textTransform: 'uppercase',
+    fontSize: 11,
+    fontWeight: '600',
+    color: COLORS.textLight,
+    marginBottom: 2,
   },
   drillMeaningText: {
     fontSize: 15,
     fontWeight: '700',
-    color: COLORS.textMain,
+    color: COLORS.primary,
   },
   evalScoreBox: {
-    backgroundColor: COLORS.accentGreenLight,
-    padding: 12,
-    borderRadius: RADIUS.md,
+    backgroundColor: '#ECFDF5',
+    borderColor: '#A7F3D0',
     borderWidth: 1,
-    borderColor: COLORS.borderGreen,
-    gap: 4,
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
+    marginBottom: 16,
   },
   evalScoreHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
+    marginBottom: 4,
   },
   evalScoreTitle: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '800',
-    color: COLORS.accentGreenDark,
+    color: COLORS.accentGreen,
   },
   evalFeedbackText: {
     fontSize: 12,
-    color: COLORS.accentGreenDark,
+    color: '#065F46',
+    lineHeight: 16,
   },
   drillRecordBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
     backgroundColor: COLORS.primary,
+    borderRadius: RADIUS.lg,
     paddingVertical: 14,
-    borderRadius: RADIUS.md,
-    ...SHADOWS.md,
+    gap: 8,
+    marginBottom: 16,
+    ...SHADOWS.sm,
   },
-  drillRecordBtnActive: {
-    backgroundColor: COLORS.primaryHover,
+  drillRecordBtnLoading: {
+    opacity: 0.7,
   },
   drillRecordBtnText: {
-    fontSize: 15,
-    fontWeight: '800',
     color: COLORS.white,
+    fontSize: 15,
+    fontWeight: '700',
   },
   drillNavRow: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
+    alignItems: 'center',
   },
   drillNavBtn: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
     gap: 4,
-    paddingVertical: 6,
   },
   drillNavBtnDisabled: {
     opacity: 0.3,
   },
-  drillNavBtnText: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: COLORS.secondary,
+  drillNavText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: COLORS.text,
   },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+    justifyContent: 'flex-end',
+  },
+  micModalCard: {
+    backgroundColor: '#ffffff',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    padding: 24,
+    alignItems: 'center',
+  },
+  micModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    width: '100%',
+    marginBottom: 20,
+  },
+  micModalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#0f172a',
+  },
+  closeBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#f1f5f9',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  waveContainer: {
+    width: 120,
+    height: 120,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginVertical: 12,
+  },
+  waveCircle: {
+    position: 'absolute',
+    borderRadius: 999,
+  },
+  waveCircleOuter: {
+    width: 120,
+    height: 120,
+    backgroundColor: '#e0e7ff',
+    opacity: 0.4,
+  },
+  waveCircleMiddle: {
+    width: 90,
+    height: 90,
+    backgroundColor: '#c7d2fe',
+    opacity: 0.6,
+  },
+  micActiveCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#4f46e5',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  micListeningText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#4f46e5',
+    marginBottom: 4,
+  },
+  micSubText: {
+    fontSize: 12,
+    color: '#64748b',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  quickStartersList: {
+    width: '100%',
+    gap: 8,
+  },
+  quickStarterItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#f8fafc',
+    borderColor: '#e2e8f0',
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  quickStarterText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#334155',
+    flex: 1,
+    marginRight: 8,
+  }
 });

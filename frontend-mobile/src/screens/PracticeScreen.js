@@ -25,6 +25,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Speech from 'expo-speech';
 
 import { useApp } from '../context/AppContext';
+import { useProgress } from '../context/ProgressContext';
 import { COLORS, SPACING, RADIUS, SHADOWS } from '../constants/theme';
 import Header from '../components/Header';
 import AudioButton from '../components/AudioButton';
@@ -39,6 +40,7 @@ const PRACTICE_SCORE_KEY = '@english_shika_practice_score';
 
 export default function PracticeScreen() {
   const { t, language, speechRate } = useApp();
+  const { completeTask } = useProgress();
 
   // Mode: 'mcq' | 'matching' | 'builder'
   const [activeMode, setActiveMode] = useState('mcq');
@@ -105,6 +107,7 @@ export default function PracticeScreen() {
         addScore(10);
         setSelectedLeft(null);
         setSelectedRight(null);
+        completeTask(2, 'verbs_basic');
       } else {
         setTimeout(() => {
           setSelectedLeft(null);
@@ -123,6 +126,10 @@ export default function PracticeScreen() {
     const correctIdx = currentQuiz.correctAnswerIdx !== undefined ? currentQuiz.correctAnswerIdx : 1;
     if (idx === correctIdx) {
       addScore(10);
+      completeTask(1, 'practice_mcq');
+      completeTask(3, 'verbs_quiz');
+      completeTask(4, 'practice_speed');
+      completeTask(5, 'practice_master');
     } else {
       setStreak(0);
     }
@@ -146,6 +153,7 @@ export default function PracticeScreen() {
     if (assembledStr === targetStr) {
       setBuilderStatus('correct');
       addScore(15);
+      completeTask(3, 'practice_builder');
     } else {
       setBuilderStatus('wrong');
     }

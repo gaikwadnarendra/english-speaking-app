@@ -279,6 +279,44 @@ async function initPostgres(databaseUrl) {
     isConnected = true;
     dbType = 'postgres';
     console.log('🚀 Connected to Neon PostgreSQL and initialized all tables & seed data!');
+
+    // Pre-cache Neon DB data into high-speed memory cache for sub-millisecond responses
+    try {
+      const [vRows] = await pool.query('SELECT * FROM vocabularies ORDER BY id ASC');
+      if (vRows && vRows.length > 0) {
+        memoryStore.vocab = vRows.map(r => ({
+          ...r,
+          is_favorite: Boolean(r.is_favorite),
+          is_difficult: Boolean(r.is_difficult),
+          examples: typeof r.examples === 'string' ? JSON.parse(r.examples) : (r.examples || [])
+        }));
+      }
+      const [vbRows] = await pool.query('SELECT * FROM verbs ORDER BY english ASC');
+      if (vbRows && vbRows.length > 0) {
+        memoryStore.verbs = vbRows;
+      }
+      const [lRows] = await pool.query('SELECT * FROM lessons ORDER BY level ASC, id ASC');
+      if (lRows && lRows.length > 0) {
+        memoryStore.lessons = lRows.map(r => {
+          let contentObj = typeof r.content === 'string' ? JSON.parse(r.content) : r.content;
+          if (contentObj && typeof contentObj === 'object' && !Array.isArray(contentObj)) {
+            return {
+              ...contentObj,
+              ...r,
+              is_completed: Boolean(r.is_completed),
+              content: contentObj.content || [],
+              grammar_tip: contentObj.grammar_tip,
+              dialogue: contentObj.dialogue,
+              quiz: contentObj.quiz
+            };
+          }
+          return { ...r, is_completed: Boolean(r.is_completed), content: contentObj };
+        });
+      }
+      console.log(`⚡ Pre-cached ${memoryStore.vocab.length} vocab, ${memoryStore.verbs.length} verbs & ${memoryStore.lessons.length} lessons for sub-millisecond API response!`);
+    } catch (cacheErr) {
+      console.warn('Memory cache prefill warning:', cacheErr.message);
+    }
   } finally {
     client.release();
   }

@@ -120,52 +120,65 @@ export const AppProvider = ({ children }) => {
     }, 600);
   };
 
-  const currentDict = translations[language] || translations.mr || {};
-  const getTranslation = (key) => {
-    if (!key) return '';
-    return currentDict[key] || translations.mr?.[key] || translations.hi?.[key] || translations.en?.[key] || key;
-  };
+  const currentDict = useMemo(() => translations[language] || translations.mr || {}, [language]);
 
-  const t = new Proxy(getTranslation, {
-    get(target, prop) {
-      if (typeof prop === 'string' && prop in currentDict) {
-        return currentDict[prop];
+  const t = useMemo(() => {
+    const getTranslation = (key) => {
+      if (!key) return '';
+      return currentDict[key] || translations.mr?.[key] || translations.hi?.[key] || translations.en?.[key] || key;
+    };
+    return new Proxy(getTranslation, {
+      get(target, prop) {
+        if (typeof prop === 'string' && prop in currentDict) {
+          return currentDict[prop];
+        }
+        if (typeof prop === 'string') {
+          return target(prop);
+        }
+        return target[prop];
       }
-      if (typeof prop === 'string') {
-        return target(prop);
-      }
-      return target[prop];
-    }
-  });
+    });
+  }, [currentDict]);
+
+  const contextValue = useMemo(() => ({
+    language,
+    changeLanguage,
+    setLanguage: changeLanguage,
+    isOnboardingDone,
+    isOnboarded: Boolean(isOnboardingDone),
+    completeOnboarding,
+    resetOnboarding,
+    userLevel,
+    setUserLevel,
+    streak,
+    incrementStreak,
+    todayMinutes,
+    setTodayMinutes,
+    soundSpeed,
+    setSoundSpeed,
+    speechRate: soundSpeed,
+    setSpeechRate: setSoundSpeed,
+    todaySnapshot,
+    refreshTodaySnapshot,
+    completedTasks,
+    markTaskDone,
+    isLoading,
+    t
+  }), [
+    language,
+    isOnboardingDone,
+    userLevel,
+    streak,
+    todayMinutes,
+    soundSpeed,
+    todaySnapshot,
+    completedTasks,
+    isLoading,
+    t
+  ]);
 
   return (
-    <AppContext.Provider
-      value={{
-        language,
-        changeLanguage,
-        setLanguage: changeLanguage,
-        isOnboardingDone,
-        isOnboarded: Boolean(isOnboardingDone),
-        completeOnboarding,
-        resetOnboarding,
-        userLevel,
-        setUserLevel,
-        streak,
-        incrementStreak,
-        todayMinutes,
-        setTodayMinutes,
-        soundSpeed,
-        setSoundSpeed,
-        speechRate: soundSpeed,
-        setSpeechRate: setSoundSpeed,
-        todaySnapshot,
-        refreshTodaySnapshot,
-        completedTasks,
-        markTaskDone,
-        isLoading,
-        t
-      }}
-    >
+    <AppContext.Provider value={contextValue}>
       {children}
     </AppContext.Provider>
   );

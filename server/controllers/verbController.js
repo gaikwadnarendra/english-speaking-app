@@ -3,36 +3,36 @@ const { getDbStatus, getPool, memoryStore } = require('../config/db');
 // GET /api/verbs
 exports.getAllVerbs = async (req, res) => {
   try {
-    const { search } = req.query;
-    const { isConnected, isMySQLConnected } = getDbStatus();
-
-    if (isConnected || isMySQLConnected) {
-      const pool = getPool();
-      let query = 'SELECT * FROM verbs WHERE 1=1';
-      const params = [];
-      if (search) {
-        query += ' AND (english LIKE ? OR marathi LIKE ? OR hindi LIKE ? OR v1 LIKE ? OR v2 LIKE ? OR v3 LIKE ?)';
-        const s = `%${search}%`;
-        params.push(s, s, s, s, s, s);
-      }
-      query += ' ORDER BY english ASC';
-      const [rows] = await pool.query(query, params);
-      return res.json({ success: true, count: rows.length, data: rows });
-    }
+    const { search, limit, page } = req.query;
 
     let list = [...memoryStore.verbs];
+
     if (search) {
-      const q = search.toLowerCase();
+      const q = search.toLowerCase().trim();
       list = list.filter(v =>
-        v.english.toLowerCase().includes(q) ||
-        v.marathi.includes(q) ||
-        v.hindi.includes(q) ||
-        v.v1.toLowerCase().includes(q) ||
-        v.v2.toLowerCase().includes(q) ||
-        v.v3.toLowerCase().includes(q)
+        (v.english && v.english.toLowerCase().includes(q)) ||
+        (v.marathi && v.marathi.includes(q)) ||
+        (v.hindi && v.hindi.includes(q)) ||
+        (v.v1 && v.v1.toLowerCase().includes(q)) ||
+        (v.v2 && v.v2.toLowerCase().includes(q)) ||
+        (v.v3 && v.v3.toLowerCase().includes(q))
       );
     }
-    res.json({ success: true, count: list.length, data: list });
+
+    const totalCount = list.length;
+    if (limit) {
+      const l = parseInt(limit, 10);
+      const p = parseInt(page || '1', 10);
+      const start = (p - 1) * l;
+      list = list.slice(start, start + l);
+    }
+
+    res.json({
+      success: true,
+      count: totalCount,
+      returnedCount: list.length,
+      data: list
+    });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
