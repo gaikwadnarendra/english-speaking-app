@@ -33,9 +33,9 @@ exports.register = async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    const { isMySQLConnected } = getDbStatus();
+    const { isConnected, isMySQLConnected } = getDbStatus();
 
-    if (isMySQLConnected) {
+    if (isConnected || isMySQLConnected) {
       const pool = getPool();
       // Check existing user
       const [existing] = await pool.query('SELECT id FROM users WHERE email = ?', [email]);
@@ -48,7 +48,7 @@ exports.register = async (req, res) => {
         [name, email, hashedPassword, ui_language]
       );
 
-      const userId = result.insertId;
+      const userId = result?.insertId || (Array.isArray(result) && result[0]?.id) || 1;
 
       // Create initial user progress
       await pool.query(
@@ -105,9 +105,9 @@ exports.login = async (req, res) => {
       return res.status(400).json({ success: false, message: 'ईमेल आणि पासवर्ड प्रविष्ट करा.' });
     }
 
-    const { isMySQLConnected } = getDbStatus();
+    const { isConnected, isMySQLConnected } = getDbStatus();
 
-    if (isMySQLConnected) {
+    if (isConnected || isMySQLConnected) {
       const pool = getPool();
       const [rows] = await pool.query('SELECT * FROM users WHERE email = ?', [email]);
       if (rows.length === 0) {
@@ -175,9 +175,9 @@ exports.login = async (req, res) => {
 exports.getMe = async (req, res) => {
   try {
     const userId = req.user.userId;
-    const { isMySQLConnected } = getDbStatus();
+    const { isConnected, isMySQLConnected } = getDbStatus();
 
-    if (isMySQLConnected) {
+    if (isConnected || isMySQLConnected) {
       const pool = getPool();
       const [userRows] = await pool.query('SELECT id, name, email, ui_language, created_at FROM users WHERE id = ?', [userId]);
       if (userRows.length === 0) {

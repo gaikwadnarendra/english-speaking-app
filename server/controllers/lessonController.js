@@ -4,9 +4,9 @@ const { getDbStatus, getPool, memoryStore } = require('../config/db');
 exports.getAllLessons = async (req, res) => {
   try {
     const { level } = req.query;
-    const { isMySQLConnected } = getDbStatus();
+    const { isConnected, isMySQLConnected } = getDbStatus();
 
-    if (isMySQLConnected) {
+    if (isConnected || isMySQLConnected) {
       const pool = getPool();
       let query = 'SELECT * FROM lessons WHERE 1=1';
       const params = [];
@@ -52,11 +52,11 @@ exports.getAllLessons = async (req, res) => {
 exports.completeLesson = async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
-    const { isMySQLConnected } = getDbStatus();
+    const { isConnected, isMySQLConnected } = getDbStatus();
 
-    if (isMySQLConnected) {
+    if (isConnected || isMySQLConnected) {
       const pool = getPool();
-      await pool.query('UPDATE lessons SET is_completed = 1 WHERE id = ?', [id]);
+      await pool.query('UPDATE lessons SET is_completed = true WHERE id = ?', [id]);
       await pool.query('UPDATE user_progress SET lessons_completed = lessons_completed + 1 WHERE user_id = 1');
       return res.json({ success: true, message: 'Lesson completed' });
     }

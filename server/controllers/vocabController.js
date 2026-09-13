@@ -5,9 +5,9 @@ const { getDbStatus, getPool, memoryStore } = require('../config/db');
 exports.getAllVocab = async (req, res) => {
   try {
     const { search, category, type, level, favorite, difficult, srs_box, sort } = req.query;
-    const { isMySQLConnected } = getDbStatus();
+    const { isConnected, isMySQLConnected } = getDbStatus();
 
-    if (isMySQLConnected) {
+    if (isConnected || isMySQLConnected) {
       const pool = getPool();
       let query = 'SELECT * FROM vocabularies WHERE 1=1';
       const params = [];
@@ -30,10 +30,10 @@ exports.getAllVocab = async (req, res) => {
         params.push(parseInt(level, 10));
       }
       if (favorite === 'true') {
-        query += ' AND is_favorite = 1';
+        query += ' AND is_favorite = true';
       }
       if (difficult === 'true') {
-        query += ' AND is_difficult = 1';
+        query += ' AND is_difficult = true';
       }
       if (srs_box) {
         query += ' AND srs_box = ?';
@@ -53,7 +53,7 @@ exports.getAllVocab = async (req, res) => {
         ...r,
         is_favorite: Boolean(r.is_favorite),
         is_difficult: Boolean(r.is_difficult),
-        examples: typeof r.examples === 'string' ? JSON.parse(r.examples) : r.examples
+        examples: typeof r.examples === 'string' ? JSON.parse(r.examples) : (r.examples || [])
       }));
       return res.json({ success: true, count: parsedRows.length, data: parsedRows });
     }
@@ -124,9 +124,9 @@ exports.getCategories = async (req, res) => {
 exports.toggleFavorite = async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
-    const { isMySQLConnected } = getDbStatus();
+    const { isConnected, isMySQLConnected } = getDbStatus();
 
-    if (isMySQLConnected) {
+    if (isConnected || isMySQLConnected) {
       const pool = getPool();
       await pool.query('UPDATE vocabularies SET is_favorite = NOT is_favorite WHERE id = ?', [id]);
       const [rows] = await pool.query('SELECT is_favorite FROM vocabularies WHERE id = ?', [id]);

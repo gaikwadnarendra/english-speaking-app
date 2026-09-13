@@ -4,9 +4,9 @@ const { getDbStatus, getPool, memoryStore } = require('../config/db');
 exports.getAllVerbs = async (req, res) => {
   try {
     const { search } = req.query;
-    const { isMySQLConnected } = getDbStatus();
+    const { isConnected, isMySQLConnected } = getDbStatus();
 
-    if (isMySQLConnected) {
+    if (isConnected || isMySQLConnected) {
       const pool = getPool();
       let query = 'SELECT * FROM verbs WHERE 1=1';
       const params = [];

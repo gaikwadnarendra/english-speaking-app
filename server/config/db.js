@@ -241,17 +241,35 @@ async function initPostgres(databaseUrl) {
     // Create wrapper pool with MySQL compatibility: [rows] = await pool.query(sql, params)
     pool = {
       query: async (sql, params = []) => {
-        const { formattedSql, params: pgParams } = formatPgQuery(sql, params);
+        let querySql = sql;
+        const isInsert = /^\s*insert\s+/i.test(querySql);
+        if (isInsert && !/returning/i.test(querySql)) {
+          querySql += ' RETURNING id';
+        }
+        const { formattedSql, params: pgParams } = formatPgQuery(querySql, params);
         const res = await pgPool.query(formattedSql, pgParams);
-        return [res.rows, res.fields];
+        const rows = res.rows || [];
+        if (isInsert && rows.length > 0 && rows[0].id) {
+          rows.insertId = rows[0].id;
+        }
+        return [rows, res.fields];
       },
       getConnection: async () => {
         const c = await pgPool.connect();
         return {
           query: async (sql, params = []) => {
-            const { formattedSql, params: pgParams } = formatPgQuery(sql, params);
+            let querySql = sql;
+            const isInsert = /^\s*insert\s+/i.test(querySql);
+            if (isInsert && !/returning/i.test(querySql)) {
+              querySql += ' RETURNING id';
+            }
+            const { formattedSql, params: pgParams } = formatPgQuery(querySql, params);
             const res = await c.query(formattedSql, pgParams);
-            return [res.rows, res.fields];
+            const rows = res.rows || [];
+            if (isInsert && rows.length > 0 && rows[0].id) {
+              rows.insertId = rows[0].id;
+            }
+            return [rows, res.fields];
           },
           release: () => c.release()
         };

@@ -6,13 +6,13 @@ const SRS_BOXES = ['new', 'learning', 'reviewing', 'mastered'];
 // Returns cards that are ready for review today
 exports.getDueReviews = async (req, res) => {
   try {
-    const { isMySQLConnected } = getDbStatus();
+    const { isConnected, isMySQLConnected } = getDbStatus();
 
-    if (isMySQLConnected) {
+    if (isConnected || isMySQLConnected) {
       const pool = getPool();
       // In a real app we'd filter by review timestamps; here we fetch due learning/reviewing items
       const [rows] = await pool.query(
-        "SELECT * FROM vocabularies WHERE srs_box IN ('learning', 'reviewing') OR is_difficult = 1 LIMIT 10"
+        "SELECT * FROM vocabularies WHERE srs_box IN ('learning', 'reviewing') OR is_difficult = true LIMIT 10"
       );
       return res.json({ success: true, count: rows.length, data: rows });
     }
@@ -57,7 +57,7 @@ exports.getSRSStats = async (req, res) => {
 exports.updateSRSBox = async (req, res) => {
   try {
     const { vocabId, isCorrect } = req.body;
-    const { isMySQLConnected } = getDbStatus();
+    const { isConnected, isMySQLConnected } = getDbStatus();
     const id = parseInt(vocabId, 10);
 
     const item = memoryStore.vocab.find(v => v.id === id);
@@ -88,11 +88,11 @@ exports.updateSRSBox = async (req, res) => {
     item.srs_box = newBox;
     item.is_difficult = isDifficult;
 
-    if (isMySQLConnected) {
+    if (isConnected || isMySQLConnected) {
       const pool = getPool();
       await pool.query('UPDATE vocabularies SET srs_box = ?, is_difficult = ? WHERE id = ?', [
         newBox,
-        isDifficult ? 1 : 0,
+        Boolean(isDifficult),
         id
       ]);
     }

@@ -3,9 +3,9 @@ const { getDbStatus, getPool, memoryStore } = require('../config/db');
 // GET /api/progress
 exports.getProgress = async (req, res) => {
   try {
-    const { isMySQLConnected } = getDbStatus();
+    const { isConnected, isMySQLConnected } = getDbStatus();
 
-    if (isMySQLConnected) {
+    if (isConnected || isMySQLConnected) {
       const pool = getPool();
       const [rows] = await pool.query('SELECT * FROM user_progress WHERE user_id = 1');
       if (rows.length > 0) {
