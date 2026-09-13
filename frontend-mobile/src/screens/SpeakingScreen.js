@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,10 +11,13 @@ import {
   Platform,
   Modal,
   Image,
+  Alert,
+  Animated,
 } from 'react-native';
 import {
   Bot,
   Mic,
+  MicOff,
   Send,
   Sparkles,
   Volume2,
@@ -34,9 +37,11 @@ import {
   Check,
   AlertCircle,
   ArrowRight,
+  ShieldAlert,
 } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Speech from 'expo-speech';
+import { Audio } from 'expo-av';
 
 import { useApp } from '../context/AppContext';
 import { useProgress } from '../context/ProgressContext';
@@ -60,6 +65,12 @@ export default function SpeakingScreen() {
   // Mode: 'ai_chat' | 'picture_desc' | 'listen_repeat'
   const [speakingMode, setSpeakingMode] = useState('picture_desc');
 
+  // ================= MIC PERMISSION & RECORDING =================
+  const [micPermission, setMicPermission] = useState(null); // null | 'granted' | 'denied'
+  const [isRecording, setIsRecording] = useState(false);
+  const recordingRef = useRef(null);
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
   // ================= 1. AI CHAT STATE =================
   const [scenarios, setScenarios] = useState(SPEAKING_SCENARIOS);
   const [selectedScenarioId, setSelectedScenarioId] = useState('daily');
@@ -75,16 +86,123 @@ export default function SpeakingScreen() {
   const [picDescriptionInput, setPicDescriptionInput] = useState('');
   const [isPicEvaluating, setIsPicEvaluating] = useState(false);
   const [picEvalResult, setPicEvalResult] = useState(null);
-  const [isPicMicActive, setIsPicMicActive] = useState(false);
 
   // ================= 3. LISTEN & REPEAT STATE =================
   const [sentenceIdx, setSentenceIdx] = useState(0);
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [evalScore, setEvalScore] = useState(null);
+  const [drillMicText, setDrillMicText] = useState('');
 
   const scrollViewRef = useRef(null);
   const currentScenario = scenarios.find(s => s.id === selectedScenarioId) || scenarios[0];
   const currentPicScenario = PICTURE_SCENARIOS[picScenarioIdx] || PICTURE_SCENARIOS[0];
+
+  // Check/request mic permission on mount
+  useEffect(() => {
+    const checkMicPermission = async () => {
+      try {
+        const { status } = await Audio.getPermissionsAsync();
+        setMicPermission(status === 'granted' ? 'granted' : status === 'denied' ? 'denied' : null);
+      } catch (e) {
+        setMicPermission(null);
+      }
+    };
+    checkMicPermission();
+  }, []);
+
+  // Pulse animation for recording state
+  useEffect(() => {
+    if (isRecording) {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, { toValue: 1.35, duration: 600, useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
+        ])
+      ).start();
+    } else {
+      pulseAnim.setValue(1);
+    }
+  }, [isRecording]);
+
+  // Cleanup recording on unmount
+  useEffect(() => {
+    return () => {
+      if (recordingRef.current) {
+        recordingRef.current.stopAndUnloadAsync().catch(() => {});
+      }
+    };
+  }, []);
+
+  // Central mic permission request
+  const requestMicPermission = async () => {
+    try {
+      const { status } = await Audio.requestPermissionsAsync();
+      setMicPermission(status === 'granted' ? 'granted' : 'denied');
+      return status === 'granted';
+    } catch (e) {
+      setMicPermission('denied');
+      return false;
+    }
+  };
+
+  // Start/stop recording for Drill mode
+  const handleDrillRecord = async () => {
+    if (isEvaluating) return;
+
+    // If already recording → stop and evaluate
+    if (isRecording) {
+      setIsRecording(false);
+      if (recordingRef.current) {
+        try { await recordingRef.current.stopAndUnloadAsync(); } catch (e) {}
+        recordingRef.current = null;
+      }
+      // Simulate evaluation (real STT would decode the audio file)
+      setIsEvaluating(true);
+      setTimeout(() => {
+        setIsEvaluating(false);
+        const randomAccuracy = Math.floor(Math.random() * 15) + 85;
+        setEvalScore(randomAccuracy);
+        const nextCount = sentenceIdx + 1;
+        if (nextCount >= 5) completeTask(2, 'speaking_5');
+        if (nextCount >= 15) completeTask(4, 'speaking_15');
+      }, 1200);
+      return;
+    }
+
+    // Request permission if needed
+    let permitted = micPermission === 'granted';
+    if (!permitted) {
+      permitted = await requestMicPermission();
+    }
+
+    if (!permitted) {
+      Alert.alert(
+        'Microphone Permission Required',
+        'Please allow microphone access in your device Settings to use voice features.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'OK', onPress: () => {} },
+        ]
+      );
+      return;
+    }
+
+    // Start recording
+    try {
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+      });
+      const { recording } = await Audio.Recording.createAsync(
+        Audio.RecordingOptionsPresets.HIGH_QUALITY
+      );
+      recordingRef.current = recording;
+      setIsRecording(true);
+      setEvalScore(null);
+    } catch (e) {
+      Alert.alert('Recording Error', 'Could not start recording. Please try again.');
+    }
+  };
 
   // Fetch scenarios from API in background
   useEffect(() => {
@@ -222,7 +340,19 @@ export default function SpeakingScreen() {
     }
   };
 
-  const handleOpenMic = () => {
+  const handleOpenMic = async () => {
+    let permitted = micPermission === 'granted';
+    if (!permitted) {
+      permitted = await requestMicPermission();
+    }
+    if (!permitted) {
+      Alert.alert(
+        'मायक्रोफोन परवानगी (Mic Permission)',
+        'Voice feature साठी microphone access द्या. Settings मध्ये जाऊन allow करा.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
     setIsMicModalOpen(true);
     setIsListening(true);
   };
@@ -262,17 +392,9 @@ export default function SpeakingScreen() {
   // Listen & Repeat Sentence Handler
   const currentSentence = LISTEN_REPEAT_SENTENCES[sentenceIdx] || LISTEN_REPEAT_SENTENCES[0];
 
+  // Legacy text-only evaluate (kept for compatibility)
   const handleEvaluateSpeaking = () => {
-    setIsEvaluating(true);
-    setEvalScore(null);
-    setTimeout(() => {
-      setIsEvaluating(false);
-      const randomAccuracy = Math.floor(Math.random() * 15) + 85;
-      setEvalScore(randomAccuracy);
-      const nextCount = sentenceIdx + 1;
-      if (nextCount >= 5) completeTask(2, 'speaking_5');
-      if (nextCount >= 15) completeTask(4, 'speaking_15');
-    }, 1000);
+    handleDrillRecord();
   };
 
   return (
@@ -688,24 +810,45 @@ export default function SpeakingScreen() {
               </View>
             )}
 
-            {/* Record & Evaluate Button */}
-            <TouchableOpacity
-              style={[styles.drillRecordBtn, isEvaluating && styles.drillRecordBtnLoading]}
-              onPress={handleEvaluateSpeaking}
-              disabled={isEvaluating}
-              activeOpacity={0.85}
-            >
-              {isEvaluating ? (
-                <ActivityIndicator color={COLORS.white} />
-              ) : (
-                <>
-                  <Mic size={22} color={COLORS.white} />
-                  <Text style={styles.drillRecordBtnText}>
-                    {language === 'mr' ? 'माईक दाबून बोला व तपासा' : 'Tap to Speak & Check'}
-                  </Text>
-                </>
+            {/* Record & Evaluate Button with Mic Pulse Animation */}
+            <View style={styles.drillRecordWrap}>
+              {isRecording && (
+                <Animated.View
+                  style={[
+                    styles.drillRecordPulse,
+                    { transform: [{ scale: pulseAnim }] }
+                  ]}
+                />
               )}
-            </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.drillRecordBtn,
+                  isRecording && styles.drillRecordBtnActive,
+                  isEvaluating && styles.drillRecordBtnLoading,
+                ]}
+                onPress={handleEvaluateSpeaking}
+                disabled={isEvaluating}
+                activeOpacity={0.85}
+              >
+                {isEvaluating ? (
+                  <ActivityIndicator color={COLORS.white} />
+                ) : isRecording ? (
+                  <>
+                    <MicOff size={22} color={COLORS.white} />
+                    <Text style={styles.drillRecordBtnText}>
+                      {language === 'mr' ? 'थांबा व तपासा (Stop)' : 'Stop & Evaluate'}
+                    </Text>
+                  </>
+                ) : (
+                  <>
+                    <Mic size={22} color={COLORS.white} />
+                    <Text style={styles.drillRecordBtnText}>
+                      {language === 'mr' ? 'माईक दाबून बोला' : 'Tap Mic & Speak'}
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
 
             {/* Navigation Buttons */}
             <View style={styles.drillNavRow}>
@@ -1417,7 +1560,10 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: RADIUS.md,
     gap: 8,
-    marginBottom: 16,
+    marginBottom: 0,
+  },
+  drillRecordBtnActive: {
+    backgroundColor: '#EF4444',
   },
   drillRecordBtnLoading: {
     backgroundColor: '#94A3B8',
@@ -1426,6 +1572,20 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: COLORS.white,
+  },
+  drillRecordWrap: {
+    position: 'relative',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  drillRecordPulse: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    borderRadius: RADIUS.md,
+    backgroundColor: 'rgba(239,68,68,0.25)',
+    top: 0,
+    left: 0,
   },
   drillNavRow: {
     flexDirection: 'row',

@@ -12,7 +12,11 @@
       "backgroundColor": "#1E1B4B"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "English शिका uses the microphone to evaluate your spoken English pronunciation and improve your speaking skills.",
+        "NSSpeechRecognitionUsageDescription": "English शिका uses speech recognition to help you practice English speaking."
+      }
     },
     "android": {
       "package": "com.englishshika.app",

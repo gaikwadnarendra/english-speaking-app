@@ -205,6 +205,14 @@ export default function VocabScreen() {
     if (newCount >= 50) completeTask(5, 'vocab_master');
   };
 
+  // Pull-to-refresh: re-fetch from API and update cache
+  const onRefresh = () => {
+    setRefreshing(true);
+    setVocabDisplayLimit(PAGE_SIZE);
+    setVerbDisplayLimit(PAGE_SIZE);
+    fetchData();
+  };
+
   return (
     <View style={styles.container}>
       <Header />
